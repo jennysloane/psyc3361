@@ -1,0 +1,172 @@
+---
+title: "Study 2 Code"
+author: "Karynna"
+date: "4/22/2020"
+output: html_document
+---
+
+```{r Loading Packages}
+library(readr)
+library(psych)
+library(stats)
+library(dplyr)
+library(lsr)
+library(lm.beta)
+```
+
+```{r Reading in Data}
+Study2 <- read_csv("Connection During Corona Virus Survey/Paper #1 - Extraversion/Data & Codebook/Study 2.csv")
+```
+
+```{r Demographics}
+Study2 <- group5
+describeBy(Study2$Age)
+table(Study2$Gender)
+table(Study2$Ethnicity)
+table(Study2$Country)
+```
+
+```{r Social Distancing}
+count(Study2$SocialDistancing)
+describeBy(Study2$SixFeet)
+```
+
+```{r H1 Has social connection BMPN changed as a result of the COVID-19 pandemic?}
+T1BMPN <- Study2$T1BMPN
+T2BMPN <- Study2$T2BMPN
+
+describeBy(T1BMPN)
+describeBy(T2BMPN)
+
+t.test(T2BMPN, T1BMPN, paired = T, alternative = "two.sided", Var.equal = T)
+cohensD(T2BMPN, T1BMPN)
+psych::d.ci(d = 0.009727021, n1 = 336, n2 = 336)
+```
+
+```{r H1 Has social connection LONELINESS changed as a result of the COVID-19 pandemic?}
+T1Lonely <- Study2$T1Lonely
+T2Lonely <- Study2$T2Lonely
+
+describeBy(T1Lonely)
+describeBy(T2Lonely)
+
+t.test(T2Lonely, T1Lonely, paired = T, alternative = "two.sided", Var.equal = T) 
+cohensD(T2Lonely, T1Lonely) 
+psych::d.ci(d = 0.1162911, n1 = 336, n2 = 336)
+```
+
+```{r H2 Has social connection BMPN changed more for extraverts or introverts?}
+BMPN_Extra <- lm(T2BMPN ~ T1BMPN + T1Extraversion, Study2)
+summary(BMPN_Extra) #unstandardized
+lm.beta(BMPN_Extra) #standardized
+stats::confint(BMPN_Extra, 'T1BMPN', level = 0.95)
+stats::confint(BMPN_Extra, 'T1Extraversion', level = 0.95)
+
+BMPNDiff_Extra <- lm(BMPN_Diff ~ T1Extraversion, Study2)
+summary(BMPNDiff_Extra) #unstandardized
+lm.beta(BMPNDiff_Extra) #standardized
+stats::confint(BMPNDiff_Extra, 'T1Extraversion', level = 0.95)
+```
+
+```{r H2 Has social connection LONELINESS changed more for extraverts or introverts?}
+Loneliness_Extra <- lm(T2Lonely ~ T1Lonely + T1Extraversion, Study2)
+summary(Loneliness_Extra) #unstandardized
+lm.beta(Loneliness_Extra) #standardized
+stats::confint(Loneliness_Extra, 'T1Lonely', level = 0.95)
+stats::confint(Loneliness_Extra, 'T1Extraversion', level = 0.95)
+
+LonelyDiff_Extra <- lm(Lonely_Diff ~ T1Extraversion, Study2)
+summary(LonelyDiff_Extra) #unstandardized
+lm.beta(LonelyDiff_Extra) #standardized
+stats::confint(LonelyDiff_Extra, 'T1Extraversion', level = 0.95)
+```
+
+```{r Most Extraverted and Introverted}
+quantile(Study2$T1Extraversion) #finding quartiles
+
+Binning_Extra <- Study2 %>%
+  mutate(T1IE =  case_when(T1Extraversion <= 3.333333 ~ 'Introvert', #25 quartile
+                           T1Extraversion >= 4.416667 ~ 'Extravert')) #75 quartile
+
+table(Binning_Extra$T1IE)
+
+Binning_Extra = Binning_Extra %>%
+  dplyr::select(T1Extraversion:T1Lonely, T2Extraversion:T2Lonely, T1IE)
+
+Introv <- Binning_Extra %>%
+  filter(T1IE == 'Introvert')
+
+Extrov <- Binning_Extra  %>%
+  filter(T1IE == 'Extravert')
+  
+t.test(Extrov$T1Lonely, Extrov$T2Lonely, paired = T, alternative = "two.sided", Var.equal = T)
+cohensD(Extrov$T1Lonely, Extrov$T2Lonely) 
+psych::d.ci(d = 0.07146532, n1 = 83, n2 = 83)
+
+t.test(Introv$T1Lonely, Introv$T2Lonely, paired = T, alternative = "two.sided", Var.equal = T)
+cohensD(Introv$T2Lonely, Introv$T1Lonely) 
+psych::d.ci(d = 0.3893656, n1 = 80, n2 = 80)
+```
+
+```{r More Analyses changes in social connection BMPN have a larger effect on well-being for extraverts versus introverts adding T1 SWLS}
+BMPNSWLS_Extra <- lm(SWLS_Diff ~  BMPN_Diff + T1Extraversion + BMPN_Diff*T1Extraversion, Study2)
+summary(BMPNSWLS_Extra)
+lm.beta(BMPNSWLS_Extra)
+stats::confint(BMPNSWLS_Extra, 'BMPN_Diff', level = 0.95)
+stats::confint(BMPNSWLS_Extra, 'T1Extraversion', level = 0.95)
+stats::confint(BMPNSWLS_Extra, 'BMPN_Diff:T1Extraversion', level = 0.95)
+
+BMPNSWLS_Extra_T1SWLS <- lm(SWLS_Diff ~  BMPN_Diff + T1Extraversion + T1SWLS + BMPN_Diff*T1Extraversion, Study2)
+summary(BMPNSWLS_Extra_T1SWLS) #unstandardized
+lm.beta(BMPNSWLS_Extra_T1SWLS) #standardized
+stats::confint(BMPNSWLS_Extra_T1SWLS, 'BMPN_Diff', level = 0.95)
+stats::confint(BMPNSWLS_Extra_T1SWLS, 'T1Extraversion', level = 0.95)
+stats::confint(BMPNSWLS_Extra_T1SWLS, 'T1SWLS', level = 0.95)
+stats::confint(BMPNSWLS_Extra_T1SWLS, 'BMPN_Diff:T1Extraversion', level = 0.95)
+```
+
+```{r More Analyses changes in social connection LONELINESS have a larger effect on well-being for extraverts versus introverts}
+LONELYSWLS_Extra <- lm(SWLS_Diff ~  Lonely_Diff + T1Extraversion + Lonely_Diff*T1Extraversion, Study2)
+summary(LONELYSWLS_Extra) #unstandardized
+lm.beta(LONELYSWLS_Extra) #standardized
+stats::confint(LONELYSWLS_Extra, 'Lonely_Diff', level = 0.95)
+stats::confint(LONELYSWLS_Extra, 'T1Extraversion', level = 0.95)
+stats::confint(LONELYSWLS_Extra, 'Lonely_Diff:T1Extraversion', level = 0.95)
+
+LONELYSWLS_Extra_T1SWLS <- lm(SWLS_Diff ~  Lonely_Diff + T1Extraversion + T1SWLS + Lonely_Diff*T1Extraversion, Study2)
+summary(LONELYSWLS_Extra_T1SWLS) #unstandardized
+lm.beta(LONELYSWLS_Extra_T1SWLS)  #standardized
+stats::confint(LONELYSWLS_Extra_T1SWLS, 'Lonely_Diff', level = 0.95)
+stats::confint(LONELYSWLS_Extra_T1SWLS, 'T1Extraversion', level = 0.95)
+stats::confint(LONELYSWLS_Extra_T1SWLS, 'T1SWLS', level = 0.95)
+stats::confint(LONELYSWLS_Extra_T1SWLS, 'Lonely_Diff:T1Extraversion', level = 0.95)
+```
+
+```{r More Analyses}
+T1BMPNSWLS_Extra <- lm(SWLS_Diff ~  BMPN_Diff + T1BMPN + T1Extraversion + T1SWLS + T1Extraversion*BMPN_Diff, Study2)
+summary(T1BMPNSWLS_Extra)
+lm.beta(T1BMPNSWLS_Extra)
+stats::confint(T1BMPNSWLS_Extra, 'BMPN_Diff', level = 0.95) 
+stats::confint(T1BMPNSWLS_Extra, 'T1BMPN', level = 0.95) 
+stats::confint(T1BMPNSWLS_Extra, 'T1Extraversion', level = 0.95)
+stats::confint(T1BMPNSWLS_Extra, 'T1SWLS', level = 0.95)
+stats::confint(T1BMPNSWLS_Extra, 'BMPN_Diff:T1Extraversion', level = 0.95)
+
+T1LONELYSWLS_Extra_T1SWLS <- lm(SWLS_Diff ~  Lonely_Diff + T1Lonely + T1Extraversion + T1SWLS + T1Extraversion*Lonely_Diff, Study2)
+summary(T1LONELYSWLS_Extra_T1SWLS)
+lm.beta(T1LONELYSWLS_Extra_T1SWLS)
+stats::confint(T1LONELYSWLS_Extra_T1SWLS, 'Lonely_Diff', level = 0.95) 
+stats::confint(T1LONELYSWLS_Extra_T1SWLS, 'T1Lonely', level = 0.95) 
+stats::confint(T1LONELYSWLS_Extra_T1SWLS, 'T1Extraversion', level = 0.95)
+stats::confint(T1LONELYSWLS_Extra_T1SWLS, 'T1SWLS', level = 0.95)
+stats::confint(T1LONELYSWLS_Extra_T1SWLS, 'Lonely_Diff:T1Extraversion', level = 0.95)
+```
+
+```{r SWLS}
+t.test(Study2$T1SWLS, Study2$T2SWLS, paired = T, alternative = "two.sided")
+cohensD(Study2$T1SWLS, Study2$T2SWLS) # .02
+psych::d.ci(d = 0.01560769, n1 = 336, n2 = 336)
+
+cor.test(Study2$BMPN_Diff, Study2$SWLS_Diff)
+cor.test(Study2$Lonely_Diff, Study2$SWLS_Diff)
+```

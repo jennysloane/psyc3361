@@ -1,0 +1,456 @@
+---
+title: "QnA Session Week 6"
+output: rmdformats::readthedown
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# load libraries
+```{r}
+library(tidyverse)
+library(here)
+library(janitor)
+library(gt)
+library(haven)
+require(gridExtra)
+library(ggeasy)
+library(gtsummary)
+library(cowplot) # for ggdraw()
+library(extrafont)
+loadfonts(device="win") 
+```
+
+# eval = FALSE
+
+- here's an example where the code will produce an error
+- but we can still knit the document because eval is set to FALSE
+```{r eval = FALSE}
+# I made a typo here (should be read_csv!)
+group1 <- read_cvs(here("data", "1_carstensen", "AgeAdvantagesEmotionCovid_Data.csv")) 
+```
+
+# Formatting Tables!
+
+- gt package
+- I found this website helpful: [http://www.danieldsjoberg.com/gt-and-gtsummary-presentation/#12](http://www.danieldsjoberg.com/gt-and-gtsummary-presentation/#12)
+
+[https://gt.rstudio.com/articles/intro-creating-gt-tables.html](https://gt.rstudio.com/articles/intro-creating-gt-tables.html)
+
+- hide columns
+- format numbers
+- format %
+- merge 2 columns together
+- format currency
+- add footnote
+```{r eval=TRUE}
+# exibble (example tibble) is part of the gt package
+
+# I'm adding a couple of extra columns to demonstrate what we can do with gt
+my_table <- exibble %>%
+  mutate(perc = c(10, 20, 30, 40, 50, 60, 70, 80), 
+         sd = c(.1, .1, .25, .2, .1, .1, .3, .25))
+
+
+my_table %>%
+  gt(
+    rowname_col = "row",
+    groupname_col = "group"
+  ) %>%
+  cols_hide( # hide columns
+    columns = vars(date, time, fctr, char, datetime) # make sure to use vars()
+  ) %>%
+  fmt_number( # format numbers to 2 decimal places
+    columns = vars(num), 
+    decimals = 2
+  ) %>%
+  fmt_number( ### get parentheses!
+    columns = vars(sd),
+    pattern = "({x})"
+  )  %>%
+  fmt_percent( # format percent
+    columns = vars(perc), 
+    scale_values = FALSE, # by default this is set to try which multiplies the variable by 100
+    decimals = 0
+  ) %>%
+  cols_merge( # merge columns into 1
+     columns = vars(perc, sd) #,
+    # pattern = "{1} ({2})" # or this also works to add parentheses in columns you are merging
+  ) %>%
+  cols_label( # added this
+    perc = "% (sd)",
+  ) %>%
+  fmt_currency( # add currency 
+    columns = vars(currency),
+    currency = "AUD"
+  ) %>%
+  tab_header( # title and subtitle
+    title = md("Example Table from **exibble**"), # md is to allow markdown formatting
+    subtitle = md("`exibble` is an gt dataset")
+  ) %>%
+  tab_footnote( # you can add 1 or more footnotes
+    footnote = "These are lower prices", 
+    locations = cells_body(
+      columns = vars(currency), 
+      rows = currency < 15
+    )
+  ) %>%
+  tab_footnote(
+    footnote = "These big numbers", 
+    locations = cells_body(
+      columns = vars(num), 
+      rows = num > 500
+    )
+  )
+
+```
+
+# example covid table
+
+- note: I'm not including the code here in case group 4 wants to try to reproduce a similar table themselves!
+```{r echo=FALSE}
+library(haven)
+
+group4 <- read_sav(here("data","8_smith",  "believing.sav")) %>%
+  clean_names() %>%
+  rowid_to_column("ID")
+
+# example from group 4 
+# if you're not in group 4, don't worry too much about this first bit of code, it's just to create a dataset for us to explore gt and creating pretty tables!
+group4_dems_labs <- group4 %>% 
+  select(ever_covid, gender:region, -has_child) 
+
+group4_dems <- zap_labels(group4_dems_labs) %>% # removed labels 
+    mutate_if(is.numeric, as.factor) # turn numeric variables into factors
+
+# changing lables 
+group4_dems$ever_covid <- factor(group4_dems$ever_covid, labels = c("no_covid", "yes_covid"))
+
+group4_dems$gender <- factor(group4_dems$gender, labels = c("Male", "Female"))
+
+group4_dems$degree <- factor(group4_dems$degree, labels = c("No formal qualifications", "Degree or higher"))
+
+group4_dems$age_categories <- factor(group4_dems$age_categories, labels = c("18 to 24 years", "25 to 34 years", "35 to 44 years", "45 to 54 years", "55 years and over"))
+
+group4_dems$region <- factor(group4_dems$region, labels = c("Midlands", "South & East", "North", "London", "Wales, Scotland, N. Ireland"))
+
+group4_table <- group4_dems %>%
+  pivot_longer(!ever_covid, names_to = "vars", values_to = "values") %>%
+  group_by(ever_covid, vars, values) %>%
+  count(name = "number") %>%
+  filter(vars %in% c("age_categories", "gender", "degree", "region" )) %>%
+  na.omit() %>%
+  group_by(vars,values) %>%
+  mutate(percentage = round(number/sum(number) * 100, 1))
+
+# let's turn our dataset into a table with the gt() function! 
+tab1 <- group4_table %>%
+  gt() 
+
+# here's an example of where pivot_wider can come in handy, we want one column for "no covid" and one column for "yes column"
+table_new <- group4_table %>%
+  pivot_wider(names_from = ever_covid, values_from = c(number, percentage)) %>%
+  clean_names()  %>%
+  ungroup() %>%
+  relocate(vars, values, number_no_covid, percentage_no_covid, number_yes_covid, percentage_yes_covid) %>% # reorders columns
+  mutate(percentage_no_covid = paste0("(",percentage_no_covid, "%)"), # add ( %)
+         percentage_yes_covid = paste0("(",percentage_yes_covid, "%)"))
+
+table_new$vars <- as.factor(table_new$vars)
+table_new$vars <- factor(table_new$vars, levels = c("gender", "age_categories", "degree", "region"), labels = c("Gender", "Age", "Highest Educational Qualification", "Region"))
+
+table_new %>%
+  gt(
+    groupname_col = "vars",
+    rowname_col = "values"
+  )  %>%
+    row_group_order( # can reorder the variables in the table
+      groups = c("Gender", "Age", "Highest Educational Qualification", "Region")
+    ) %>%
+  cols_merge( # merge columns with the number and percentage
+    columns = vars(number_no_covid, percentage_no_covid)
+  ) %>%
+  cols_merge(
+    columns = vars(number_yes_covid, percentage_yes_covid)
+  )  %>%
+  tab_spanner( # can add a section header that spans across multiple columns
+    label = "Had COVID-19",
+    columns = vars(number_no_covid, number_yes_covid) # specify which columns it spans across
+  ) %>%
+  tab_style( # add styling, here I want the group names to be bold
+    style = cell_text(weight = "bold"),
+    locations = cells_row_groups()
+  )  %>%
+  tab_style( # add styling, here I want the group names to be bold
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(columns = everything()) # everything() or vars(number_no_covid, number_yes_covid)
+  )  %>%
+  tab_style( # add styling, here I want the group names to be bold
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners(spanners = everything())
+  )  %>%
+  cols_label( # can easily rename your variables within gt
+    number_no_covid = "Think have not had
+COVID-19",
+    number_yes_covid = "Think have had
+COVID-19"
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#D7D7D7")
+    ),
+    locations = cells_body(
+      rows = c(1,3,5,7,9,11,13))
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "#D7D7D7")
+    ),
+    locations = cells_stub(
+      rows = c(1,3,5,7,9,11,13))
+  )
+```
+
+# correlation example
+```{r eval = FALSE}
+corr_ex <- iris %>%
+  as_tibble() %>%
+  clean_names()
+
+# get correlation coefficient
+cor(corr_ex$sepal_length, corr_ex$petal_width)
+
+# get correlation coefficient + p value
+cor.test(corr_ex$sepal_length, corr_ex$petal_width)
+```
+
+# Group 5 
+
+- how to know if someone is single or married?... doesn't look like you can
+- sort in descending order by country by sample size
+- exclude countries sample size less than 15
+```{r eval=FALSE}
+group5 <- read_csv("data/9_folk/Study2.csv") %>%
+  clean_names()
+
+group5 %>%
+  select(country, participant_id) %>%
+  group_by(country) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  filter(n > 14)
+
+group5 %>%
+  group_by(country) %>%
+  summarise(sample_size = size_sum(country))
+
+group5 %>%
+  group_by(country) %>%
+  summarise(sample_size = n(), # I like this function better but does the same thing that you have
+            mean_social_distance = mean(social_distancing)*100, 
+            mean_six_feet = mean(six_feet),
+            sd_six_feet = sd(six_feet)) %>% # you need a separate line for this
+  ungroup()
+```
+
+- issues with sd values for age variable being NA (example with social distance variable)
+- mean and sd show up in the same column 
+- example of merging columns
+```{r eval=FALSE}
+group5 %>%
+  select(country, participant_id) %>%
+  group_by(country) %>%
+  count() %>%
+  arrange(n)
+
+# even if you include na.rm = TRUE, you'll still see NAs
+# the problem is some countries only have 1 observation, so if that 1 value is NA it will be NA even with na.rm
+group5 %>%
+  select(country, social_distancing) %>%
+  group_by(country) %>%
+  summarise(mean_soc_dist = mean(social_distancing, na.rm = TRUE),
+            sd_soc_dist = sd(social_distancing, na.rm = TRUE))
+
+# we can exclude countries/observation with NAs 
+merg_col <- group5 %>%
+  select(country, social_distancing) %>%
+  group_by(country) %>%
+  summarise(mean_soc_dist = mean(social_distancing, na.rm = TRUE),
+            sd_soc_dist = sd(social_distancing, na.rm = TRUE)) %>%
+  na.omit()
+
+merg_col %>%
+  gt() %>%
+  fmt_number(
+    columns = vars(mean_soc_dist, sd_soc_dist),
+    decimals = 2
+  ) %>%
+  cols_merge(
+    columns = vars(mean_soc_dist, sd_soc_dist)
+  ) %>%
+  cols_label(
+    mean_soc_dist = "Mean & SD"
+  )
+
+```
+
+# Group 2
+
+- grid.arrange 3 plots together: common x and y axis labels 
+- reorder/relevel factors *fct_relevel*
+```{r eval=FALSE}
+group2 <- iris %>%
+  as_tibble() %>%
+  clean_names()
+
+setosa <- group2 %>%
+  filter(species == "setosa")
+versicolor <- group2 %>%
+  filter(species == "versicolor")
+virginica <- group2 %>%
+  filter(species == "virginica")
+
+plot1 <- ggplot(setosa, aes(sepal_length, sepal_width)) +
+  geom_smooth(method = "lm") +
+  theme_bw()
+
+plot2 <- ggplot(versicolor, aes(sepal_length, sepal_width)) +
+  geom_smooth(method = "lm") +
+  theme_bw()
+
+plot3 <- ggplot(virginica, aes(sepal_length, sepal_width)) +
+  geom_smooth(method = "lm") +
+  theme_bw()
+
+grid.arrange(plot1, plot2, plot3, ncol=3)
+
+plot1 <- ggplot(setosa, aes(sepal_length, sepal_width)) +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  labs(x = "", y = "")
+
+plot2 <- ggplot(versicolor, aes(sepal_length, sepal_width)) +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  labs(x = "", y = "")
+
+plot3 <- ggplot(virginica, aes(sepal_length, sepal_width)) +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  labs(x = "", y = "")
+
+grid.arrange(plot1, plot2, plot3, ncol=3, left = "Sepal Width", bottom = "Sepal Length")
+
+# OR combine all data into one dataset and plot it all together
+# only 5 lines of code this way!
+
+ggplot(group2, aes(sepal_length, sepal_width)) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~species) +
+  theme_bw() +
+  labs(x = "Sepal Length", y = "Sepal Width")
+
+## reorder factors 
+# right now it's in alphabetical order
+# I want versicolor, setosa, virginica 
+levels(group2_ex$species)
+
+group2_ex$species <- fct_relevel(group2_ex$species, c("versicolor", "setosa", "virginica"))
+
+ggplot(group2_ex, aes(x=sepal_length, y=sepal_width)) +
+  geom_smooth(method = "lm") + 
+  facet_wrap(~species) +
+  theme_bw() 
+``` 
+
+# Group 3 
+
+- change font: Thomas's Learning Log 
+- add x and y axis lines 
+- add dotted lines between studies
+- adjust width of individual plots when combining plots together
+```{r eval=FALSE}
+group3 <- iris %>%
+  as_tibble() %>%
+  clean_names()
+
+p <- ggplot(group3, aes(sepal_length, sepal_width)) +
+  geom_smooth(method = "lm") +
+  facet_grid(~species) +
+  theme_minimal() +
+  theme(
+    axis.line = element_line(colour= "black"),
+    panel.spacing = unit(2, "lines")
+  )
+
+ggdraw() +
+  draw_plot(p) +
+  draw_line(
+    x = c(0.7, 0.7),
+    y = c(0.1, 0.9),
+    color = "lightgrey", size = 2, linetype = 2
+  ) +
+  draw_line(
+    x = c(0.35, 0.35),
+    y = c(0.1, 0.9),
+    color = "lightgrey", size = 2, linetype = 2
+  )
+
+```
+
+# Group 4 
+
+- this is the same code I posted last week
+- unfortunately, for your question I needed to see your code but no one from group 4 was at Thursday's session 
+- try going through this code again and let me know if you still have issues
+```{r eval=FALSE}
+group4 <- read_sav(here("data","8_smith",  "believing.sav")) %>%
+  clean_names() %>%
+  rowid_to_column("ID")
+
+# example from group 4 
+# if you're not in group 4, don't worry too much about this first bit of code, it's just to create a dataset for us to explore gt and creating pretty tables!
+group4_dems_labs <- group4 %>% 
+  select(ever_covid, gender:region, -has_child) 
+
+group4_dems <- zap_labels(group4_dems_labs) %>% # removed labels 
+    mutate_if(is.numeric, as.factor)
+
+group4_dems$ever_covid <- factor(group4_dems$ever_covid, labels = c("no_covid", "yes_covid"))
+
+group4_dems$gender <- factor(group4_dems$gender, labels = c("Male", "Female"))
+
+group4_dems$degree <- factor(group4_dems$degree, labels = c("No
+formal qualifications", "Degree or higher"))
+
+group4_dems$age_categories <- factor(group4_dems$age_categories, labels = c("18 to 24 years", "25 to 34 years", "35 to 44 years", "45 to 54 years", "55 years and over"))
+
+group4_dems$region <- factor(group4_dems$region, labels = c("Midlands", "South & East", "North", "London", "Wales, Scotland, N. Ireland"))
+
+group4_table <- group4_dems %>%
+  pivot_longer(!ever_covid, names_to = "vars", values_to = "values") %>%
+  group_by(ever_covid, vars, values) %>%
+  count(name = "number") %>%
+  filter(vars %in% c("age_categories", "gender", "Has_child", "Working", "Key_worker", "degree", "region" )) %>%
+  na.omit %>%
+  group_by(vars,values) %>%
+  mutate(percentage = round(number/sum(number) * 100, 1))
+
+# let's turn our dataset into a table with the gt() function! 
+group4_table %>%
+  gt() 
+
+# here's an example of where pivot_wider can come in handy, we want one column for "no covid" and one column for "yes column"
+table_new <- group4_table %>%
+  pivot_wider(names_from = ever_covid, values_from = c(number, percentage)) %>%
+  clean_names()  %>%
+  ungroup() %>%
+  relocate(vars, values, number_no_covid, percentage_no_covid, number_yes_covid, percentage_yes_covid) # reorders columns
+
+table_new %>%
+  gt()
+```
+

@@ -1,0 +1,42 @@
+---
+title: "References"
+output: 
+   prettydoc::html_pretty:
+     theme: cayman
+bibliography: all_references.bib  
+---
+
+# install [citr](https://github.com/crsh/citr)
+```{r eval = FALSE}
+devtools::install_github("crsh/citr")
+```
+
+- close and reopen Rstudio
+- check to see if "insert citations" is now in your addins 
+- click on it and it should run the following code:
+
+```{r eval = FALSE}
+citr:::insert_citation()
+```
+
+# create a .bib file with your references stored 
+
+- I do this by going to google scholar, searching for the article I want to cite, clicking on the quotation symbol, and selecting BibTex
+- copy the bibtex file
+- open up a new R script and paste the bibtex file
+- make sure to save this as a .bib file (e.g. myrefs.bib)
+- add all the references you want to this file 
+- you may have to close and reopen Rstudio once more
+
+# include bibliography: xxxx.bib in your heading (e.g. bibliography: myrefs.bib)
+
+- test it out! 
+- for parenthetical citations, check include parentheses 
+- for in text citations, uncheck that option
+
+[@Tybur2020] - "in parentheses" is checked <br>
+@Tybur2020 - "in parentheses" is not checked
+
+
+
+

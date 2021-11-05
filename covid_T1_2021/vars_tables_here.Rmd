@@ -1,0 +1,444 @@
+---
+title: "Examples"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(here)
+library(janitor)
+library(gt)
+```
+
+# creating and saving variables & filter()
+```{r}
+mydat <- read_csv("covid_T1_2021/data_forensic.csv")
+
+# I want a variable that has only forensic scientists
+mydat %>%
+  select(participant, age, condition, forensic_scientist, handwriting_reports) %>%
+  #filter(forensic_scientist == yes)
+  #filter(forensic_scientist = "Yes")
+  filter(forensic_scientist == "Yes")
+
+# that looks good and although we see it in the console, right now it's not actually saved to any variable. 
+# now, we're actually saving it to a new variable called scientists! as soon as you run this bit of code, you'll be able to see scientists appear in your global environment
+scientists <- mydat %>%
+  select(participant, age, condition, forensic_scientist, handwriting_reports) %>%
+  filter(forensic_scientist == "Yes")
+
+```
+
+# numeric, character, factors 
+```{r}
+scientists
+
+# we want age to be a factor/categorical
+scientists$age <- as.factor(scientists$age)
+
+# ?factor
+
+# but what happens if we try to go back to numeric?
+# something's not right here...
+
+# as.numeric(scientists$age)
+
+# in order to go from factor to numeric, we actually have to take an extra step 
+
+# as.numeric(as.character(scientists$age))
+# as.numeric(levels(scientists$age))[scientists$age]
+
+```
+
+# tabyl and %
+```{r}
+# ?tabyl #janitor package
+
+mtcars %>%
+  as_tibble()
+tabyl(mtcars, cyl)
+
+tabyl(mtcars, cyl) %>%
+  adorn_pct_formatting()
+```
+
+
+# here 
+
+- [Jenny's Blog post on here()](http://jenrichmond.rbind.io/post/how-to-use-the-here-package/) 
+```{r eval=FALSE}
+# ?here
+ 
+# getwd()
+
+# let's try to load in the forensic dataset first
+forensic <- read_csv("covid_T1_2021/data_forensic.csv") # that works because this csv is in our current working directory
+
+# but now I want to try to read in a csv that is in the data folder and then in 1_carstensen folder (so 2 folders deep)
+
+# group1 <- read_csv("covid_T1_2021/data/AgeAdvantagesEmotionCovid_Data.csv") # error! not in the current working directory
+
+group1 <- read_csv("covid_T1_2021/data/1_carstensen/AgeAdvantagesEmotionCovid_Data.csv") # this would work, I just started typing "age" and then tab to select the right file and it automatically filled in the rest
+
+# or we can use the here function
+group1 <- read_csv(here("covid_T1_2021", "data", "1_carstensen", "AgeAdvantagesEmotionCovid_Data.csv"))
+group1 <- read_csv(here("./covid_T1_2021/data/1_carstensen/AgeAdvantagesEmotionCovid_Data.csv"))
+
+```
+
+# Group 1 
+## pivot_longer()
+## combine multiple plots together
+
+- pivot_longer()
+- combine multiple plots together *try grid.arrange() or facet_wrap() with "long" data*
+- Luke CI lower and upper combined *try unite() with your lower and upper CI variables*
+```{r}
+# warning message: save your data to it's own variable and then start your pipes
+# if you use pivot_longer within a pipe, you don't need to specify the data
+group1_long <- group1 %>%
+  select(age, avg_i_pos, avg_i_neg, avg_f_pos, avg_f_neg) %>%
+  na.omit() %>%
+  pivot_longer(
+    cols = -age,
+    names_to = "fivalnce",
+    values_to = "value" 
+  )
+
+# scatter plots - Rory and Lucas had success recreating the plots
+
+# combining plots together
+group1_plot <- group1 %>%
+  select(age, avg_i_pos, avg_i_neg, avg_f_pos, avg_f_neg) %>%
+  na.omit()
+
+# save first plot
+pos_f <- ggplot(data = group1_plot) +
+  geom_point(
+    alpha=0.3,
+    mapping = aes(
+      x = age, 
+      y = avg_f_pos
+    )
+  ) +
+  geom_smooth(
+    mapping = aes(
+      x = age, 
+      y = avg_f_pos
+    ), method = "lm", colour = 'black') +
+  ggtitle("Positive Emotions") + xlab("Age(Years)") + ylab("Frequency of Positive Emotional Experience")
+
+# save second plot
+neg_f <- ggplot(data = group1_plot) +
+  geom_point(
+    alpha=0.3,
+    mapping = aes(
+      x = age, 
+      y = avg_f_neg
+    )
+  ) +
+  geom_smooth(
+    mapping = aes(
+      x = age, 
+      y = avg_f_neg
+    ), method = "lm", colour = 'black') +
+  labs(title= "Negative Emotions", x = "Age(Years)", y = "Frequency of Negative Emotional Experience")
+
+# you can use grid.arrange()
+require(gridExtra)
+grid.arrange(pos_f, neg_f, ncol=2)
+
+# OR you can use your long data and use facet_wrap
+group1_long
+
+ggplot(data = group1_long, aes(x = age, y = value)) +
+  geom_point(alpha=0.3) +
+  geom_smooth(method = "lm", colour = 'black') + 
+  facet_wrap(~fivalnce)
+
+# Luke CI: frequencies of emotions
+pos_emot <- group1 %>%
+  select(f_calm, f_qui, f_app, f_int, f_cont, f_hap, f_rela, f_pea, f_ener, f_aff, f_amu, f_acc, f_joy, f_pro, f_reli, f_exc) 
+
+n = length(unique(group1$ResponseId))
+
+pos_emot_mean <- pos_emot %>%
+  summarise(across(.cols = everything(), na.rm = TRUE, list(M = mean))) %>%
+  t()
+
+pos_emot_sd <- pos_emot %>%
+  summarise(across(.cols = everything(), na.rm = TRUE, list(SD = sd))) %>%
+  t()
+
+pos_emot_all <- cbind(pos_emot_mean, pos_emot_sd) %>%
+  as_tibble() %>%
+  rename("mean" = V1, 
+         "sd" = V2)
+
+mean_sd_ci <- pos_emot_all %>%
+  mutate(se = sd / sqrt(n), 
+         lowerci = mean - qt(1 - (0.05 / 2), n - 1) * se, 
+         upperci = mean + qt(1 - (0.05 / 2), n - 1) * se) %>%
+  round(2)
+
+mean_sd_ci %>%
+  unite("CI", lowerci:upperci, sep = " ", remove=FALSE) %>%
+  mutate(CI = paste0("[", CI, "]"))
+
+```
+
+# Group 2 
+
+- Fig 1 plotting standard error *try geom_smooth()*
+- empathy and physical distancing variables
+- this code doesn't exclude any participants
+```{r}
+library(readxl)
+group2_usa <- read_excel(here("data", "3_pfattheicher", "Study1USA.xlsx"))
+
+# empathy = Q22_1, Q22_3, Q22_5 and ve = mean empathy
+# social distance = Q24_1 and sd = mean social distance
+
+fig1 <- group2_usa %>%
+  rowid_to_column("ID") %>% # add pid column
+  select(ID, ve, sd)
+
+ggplot(fig1, aes(x = ve, y = sd)) +
+  geom_smooth(method = "lm", colour = "black", se = FALSE) +
+  ylim(1,5) +
+  xlim(1,5) +
+  theme_bw() +
+  labs(title="Study 1: \nUS Sample", x = "Empathy", y = "Physical Distance")
+
+
+```
+
+# Group 3
+
+- there's a lot of extra material for this paper on OSF 
+- [https://osf.io/tk3ua/](https://osf.io/tk3ua/) can take a look at WTR codebook. 6 anchors, I believe, refers to the columns where 0 and -0.25 for self and -0.45 for other
+- try to figure out which 35 participants were excluded for more than 2 switch points *I'm still not sure about this one*
+```{r}
+group3 <- read_csv(here("data","4_tybur",  "WTR_Comfort_S1.csv")) %>%
+  clean_names()
+
+tabyl(group3$sex) %>%
+  adorn_totals("row")%>%
+  adorn_pct_formatting()
+
+group3 %>%
+  summarise(meanage = mean(age), sdage = sd(age))
+
+n_group3 <- length(unique(group3$participant))
+
+# 1 switch point: For example, if, for $75 anchor point, the participant preferred to receive $109, $94, and $79, and $64, but preferred to not receive $49, $34, $19, $4, -$11, and $-26. One switch point here between $64 and $49 and because the anchor is 75, that means 49/75=0.9=65 and 64/75=0.85 so they take the average = 0.75 as the ratio. So, receive and then switch to not receive = 1 switch point
+
+
+# 2 switch points. If the participant had two switch points within an anchor (e.g., choosing to receive $109 and $94, declining to receive $79, choosing to receive $64, and declining to receive all lower amounts), we took the average of the two switch points (here, the mean of 1.15 and .75, which is equal to .95). So, here the person did receive, not receive, receive, not receive = 2 switch points 
+
+# columns 40-99 are WTR data: 6 anchors, each with 10 items
+# 0 or -0.25 = self and everything else is other 
+WTR_anchor1 <- group3[,c(1, 40:49)] 
+
+# wide format, but want long...so need pivot longer
+anchor1_switch <- WTR_anchor1 %>% 
+  pivot_longer(cols=x37_54:x37_13, names_to="item", values_to="value") %>%
+  mutate(self_other = ifelse((value==0 | value==-0.25), 0, 1))
+# has to loop through every participant and create a self_other_lag variable
+
+# anchor1_switch <- WTR_anchor1 %>% 
+#   pivot_longer(cols=x37_54:x37_13, names_to="item", values_to="value") %>%
+#   mutate(self_other = ifelse((value==0 | value==-0.25), 0, 1), # 0 = self. 1 = other
+#          self_other_lag = lag(self_other))
+# 
+# anchor1_switch$self_other_lag[is.na(anchor1_switch$self_other_lag)] <- anchor1_switch$self_other
+# 
+# count_switch <- anchor1_switch %>%
+#   mutate(switch = ifelse(self_other == self_other_lag, FALSE, TRUE)) %>% # if self_other is equivalent to self_other lag, then there is no switch. 
+#   group_by(participant) %>%
+#   summarise(total_switch = sum(switch)) %>%
+#   arrange(desc(total_switch)) # way more than 35 participants..
+
+```
+
+# Group 4 
+
+- Fig 1 how to find percentages to make plot
+- Table 3 correct id cough and fever no = 1729 yes = 788
+- Table 1 
+```{r}
+library(haven)
+
+group4 <- read_sav(here("data","8_smith",  "believing.sav")) %>%
+  clean_names() %>%
+  rowid_to_column("ID")
+
+# recreating Table 1 Smith Paper
+group4_dem <- group4 %>% 
+  select(ever_covid, gender, age_categories, has_child, working, key_worker, degree, region)
+
+group4_dem$ever_covid <- factor(group4_dem$ever_covid,
+                            levels = c(0,1),
+                            labels = c("Think have not had COVID-19", "Think have had COVID-19"))
+
+group4_dem$gender <- factor(group4_dem$gender,
+                            levels = c(1,2),
+                            labels = c("Male", "Female"))
+
+group4_dem$age_categories <- factor(group4_dem$age_categories,
+                            levels = c(1,2,3,4,5),
+                            labels = c("18 to 24 years", "25 to 34 years", "35 to 44 years", "45 to 54 years", "55 years and over"))
+
+group4_n <- length(unique(group4$ID))
+
+age <- with(group4_dem, table(age_categories, ever_covid))
+gender <- with(group4_dem, table(gender, ever_covid))
+
+dems <- rbind(gender, age)
+dems
+
+
+gender <- group4_dem %>%
+  group_by(ever_covid, gender) %>%
+  summarise(count = n())
+
+library(gt)
+library(glue)
+
+age %>%
+  gt()
+
+
+
+
+group4$q8haveimmunity <- as.factor(as.character(group4$q8haveimmunity))
+levels(group4$q8haveimmunity) # 1 = strongly disagree 5 = strongly agree "I have some immunity" 
+
+
+# bar graph is "extreme outcomes" (e.g. strongly agreeing they have some immunity, being not at all worried about COVID-19).
+
+group4_n <- length(unique(group4$ID))
+
+had_covid <- group4 %>%
+  group_by(ever_covid) %>%
+  count() %>%
+  mutate(n_ever_covid = n) %>%
+  select(-n)
+
+immunity <- group4 %>%
+  group_by(ever_covid) %>%
+  filter(q8haveimmunity == 5) %>% # only extreme value
+  count(q8haveimmunity) 
+
+immunity_perc <- left_join(had_covid, immunity, by="ever_covid") %>%
+  mutate(perc = (n/n_ever_covid)*100,
+         type = "immunity") %>%
+  select(ever_covid, n_ever_covid, perc, type)
+
+symptoms <- group4 %>%
+  group_by(ever_covid) %>%
+  filter(sx_covid_nomissing == 0) %>%
+  count(sx_covid_nomissing)
+
+symptoms_perc <- left_join(had_covid, symptoms, by="ever_covid") %>%
+  mutate(perc = (n/n_ever_covid)*100, 
+         type = "symptom") %>%
+  select(ever_covid, n_ever_covid, perc, type)
+
+perc_all <- rbind(immunity_perc, symptoms_perc)
+perc_all$ever_covid <- as_factor(perc_all$ever_covid)
+
+ggplot(perc_all, aes(x=type, y=perc, fill=ever_covid)) +
+  geom_bar(stat="identity", position = "dodge") +
+  ylim(0,60) +
+  scale_fill_manual("legend", values = c("Think have not had coronavirus" = "grey", "Think have had coronavirus" = "black")) +
+  theme_bw()
+
+# Table 3 correct id cough and fever 
+# sx_covid_nomissing = id symptoms of covid 0 = no.
+group4 %>%
+  filter(sx_covid_nomissing == 0) %>%
+  count()
+
+group4 %>%
+  group_by(ever_covid) %>%
+  filter(sx_covid_nomissing == 0) %>%
+  count()
+
+####### THURSDAY CODE
+######### here for Thursday
+
+group4$ever_covid <- as.factor(group4$ever_covid)
+
+had_covid <- group4 %>%
+  group_by(ever_covid) %>%
+  count() %>%
+  mutate(n_ever_covid = n) %>%
+  select(-n)
+
+going_out <- group4 %>%
+  group_by(ever_covid) %>%
+  filter(going_out_total > 7) %>% # paper says 8 or more outings
+  count(going_out_total) %>% # this shows that 404 people said 8 outings, 303 said 9, etc. but we really want the summation of everyone who said 8 and above for both levels of ever_covid
+  summarise(total_8_or_more = sum(n)) # so here we just sum the n column and this works because the data is still grouped by ever_covid
+
+going_out_perc <- left_join(had_covid, going_out, by="ever_covid") %>%
+  mutate(perc = (total_8_or_more/n_ever_covid)*100,
+         type = "going_out") %>%
+  select(ever_covid, n_ever_covid, perc, type)
+
+ggplot(going_out_perc, aes(x=type, y=perc, fill=ever_covid)) +
+  geom_bar(stat="identity", position = "dodge") +
+  ylim(0,60) +
+  scale_fill_manual(labels = c("Think have not had coronavirus", "Think have had coronavirus"), values = c("grey", "black")) +
+  labs(fill="") + # removes legend title
+  theme_bw()
+
+#### table 
+
+group4_dems_labs <- group4 %>% 
+  select(ever_covid, gender:region) 
+
+group4_dems <- zap_labels(group4_dems_labs) %>% # removed labels 
+    mutate_if(is.numeric, as.factor)
+
+group4_dems$ever_covid <- factor(group4_dems$ever_covid, labels = c("no_covid", "yes_covid"))
+
+group4_dems$gender <- factor(group4_dems$gender, labels = c("Male", "Female"))
+
+group4_dems$age_categories <- factor(group4_dems$age_categories, labels = c("18 to 24 years", "25 to 34 years", "35 to 44 years", "45 to 54 years", "55 years and over"))
+
+group4_table <- group4_dems %>%
+  pivot_longer(!ever_covid, names_to = "vars", values_to = "values") %>%
+  group_by(ever_covid, vars, values) %>%
+  count(name = "number") %>%
+  filter(vars %in% c("age_categories", "gender", "Has_child", "Working", "Key_worker", "degree", "region" )) %>%
+  na.omit %>%
+  group_by(vars,values) %>%
+  mutate(percentage = round(number/sum(number) * 100, 1))
+# I think this is where group4
+
+table <- group4_table %>%
+  pivot_wider(names_from = ever_covid, values_from = c(number, percentage)) %>%
+  clean_names() %>% 
+  rename("perc_yes" = percentage_yes_covid, 
+         "perc_no" = percentage_no_covid) %>%
+  relocate(vars, values, number_no_covid, perc_no, number_yes_covid, perc_yes) %>%
+  ungroup() %>%
+  select(-vars)
+
+# http://www.danieldsjoberg.com/gt-and-gtsummary-presentation/#12
+table %>%
+  gt() %>%
+  fmt_percent(columns = vars(perc_no, perc_yes),scale_values = FALSE)
+
+```
+
+
+# Group 5 (Emily, Alison, Jacqueline, Wonjae, Thomas)

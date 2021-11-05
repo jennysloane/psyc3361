@@ -1,0 +1,242 @@
+---
+title: "QnA Week 8"
+output: rmdformats::readthedown
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, warnings = FALSE, message = FALSE)
+```
+
+```{r}
+library(palmerpenguins)
+library(tidyverse)
+library(janitor)
+library(here)
+library(rstatix)
+library(ggeasy)
+library(ggpubr)
+
+library(corrplot)
+library(car)
+library(psych)
+library(BayesFactor)
+# remotes::install_github("rasmusab/bayesian_first_aid")
+library(BayesianFirstAid)
+# devtools::install_github("ropenscilabs/ozbabynames")
+library(ozbabynames)
+```
+
+# Error Bars
+
+- example with covid data
+```{r}
+mydat <- read_csv("covid_T1_2021/data/9_folk/Study2.csv") %>% 
+  clean_names()
+
+low_extroV <- quantile(mydat$t1extraversion)[2] # lowest quantile for introverts
+high_extroV <- quantile(mydat$t1extraversion)[4] # highest quantile for extroverts
+
+fig <- mydat %>%
+  select(participant_id, t1lonely, t2lonely, t1extraversion) %>%
+  mutate(cat_extraV = ifelse(t1extraversion < low_extroV, "Most Introverted",
+                             ifelse(t1extraversion > high_extroV, "Most Extroverted", "neither"))) %>% # create new column where people are categorized as introvert, extravert, or neither
+  filter(cat_extraV != "neither") %>% # we only want to have introverts and extroverts
+  pivot_longer(cols = t1lonely:t2lonely, names_to = "time") %>%
+  group_by(time, cat_extraV) %>%
+  get_summary_stats(value, type = "mean_se") # we need to get both the mean and standard error for error bars 
+
+fig$time <- factor(fig$time, labels = c("Before Pandemic", "After Pandemic"))
+
+ggplot(fig, aes(time, mean, group = cat_extraV)) +
+  geom_point() +
+  geom_line(aes(linetype = cat_extraV)) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = .1) +
+  theme_bw() +
+  easy_remove_legend_title()
+```
+
+# Correlation Matrix
+
+- back to penguins dataset
+```{r}
+penguins <- penguins %>%
+  na.omit()
+
+peng_corr <- penguins %>%
+  select(bill_length_mm:body_mass_g) %>%
+  cor()
+
+corrplot(peng_corr, type = "upper")
+
+corrplot(peng_corr, type = "upper", method = "ellipse")
+
+corrplot(peng_corr, type = "upper", method = "number")
+
+```
+
+
+# ANOVA vs ANCOVA vs Linear Regression
+
+- let's imagine we have 1 continuous DV, whether we want to use ANOVA or Linear Regression depends on the type of predictors
+- Linear Regression = if predictors are all continuous 
+- ANOVA = if predictors are all categorical 
+- ANCOVA = if you have both categorical and continuous predictors 
+- *these are all linear models - thanks to Danielle for confirming this is right*
+- *these models make several assumptions about the data - good to check first*
+
+- [Linear Models](https://lindeloev.github.io/tests-as-linear/) <br>
+- [ANOVA and ANCOVA in R](https://towardsdatascience.com/doing-and-reporting-your-first-anova-and-ancova-in-r-1d820940f2ef) <br>
+- [Linear Regression](https://www.datacamp.com/community/tutorials/linear-regression-R)<br>
+- [ANOVA assumptions](https://www.datanovia.com/en/lessons/anova-in-r/)
+
+# Linear Regression 
+
+- y = mx + b
+- DV: body mass and predictor variables: bill length and flipper length 
+- lm([dependent variable] ~ [predictor variables], data = [data source])
+```{r}
+# main effects model
+lm_penguins <- lm(body_mass_g ~ bill_length_mm + flipper_length_mm, penguins)
+summary(lm_penguins)
+
+# main effects + interaction model
+lm2_penguins <- lm(body_mass_g ~ bill_length_mm * flipper_length_mm, penguins)
+summary(lm2_penguins)
+```
+- Call = model 
+- residuals = difference between observed and predicted values
+- coefficients = intercept + predictor variables 
+- residual standard error = sd of the residuals
+- R^2 = what % of the variance can be explained by the regression
+
+## Report linear regression
+A linear regression was calculated to predict body mass based on bill and flipper length. There is a significant main effect of bill length and a significant interaction between bill length and flipper length (p < 0.001). A significant regression equation was found (F(3, 329) = 370.1, p < 0.001) with an R^2 of 0.77. 
+
+# ANOVA
+
+- DV: bill length and predictor variable: species 
+- aov([dependent variable] ~ [predictor variables], data = [data source])
+```{r}
+anova_results <- aov(bill_length_mm ~ species, penguins)
+summary(anova_results)
+
+# psych package
+
+describeBy(penguins$bill_length_mm, penguins$species)
+```
+
+## Report ANOVA results
+We observed differences in bill lengths between the three species of Adelie (M=38.82), Chinstrap (M=48.83), and Gentoo (M=47.57). An ANOVA showed that these differences between species were significant, i.e. there was a significant effect of the species on the bill length of the penguins, F(2,330)=397.3, p<.001.
+
+# ANCOVA
+
+- DV: bill length and predictor variables: species and body mass
+```{r} 
+ancova_results <- aov(bill_length_mm ~ species + body_mass_g, penguins)
+
+Anova(ancova_results, type = "III") # specifies type III errors, whereas summary() defaults to Type I errors (not a problem when performing a simple ANOVA) 
+# see ANOVA and ANCOVA in R link for further explanation
+ 
+```
+
+## Report ANCOVA results
+The covariate, body mass, was significantly related to the penguins' bill length, F(1,329)=168.76, p<.001. There was also a significant effect of the species of the penguins on the bill length after controlling for body mass, F(2,329)=388.95, p<.001.
+
+
+# ANOVA is directly related to the linear model so let's compare aov() and lm()
+- DV: body mass and predictor variables: bill length and flipper length
+```{r}
+AOV <- aov(body_mass_g ~ bill_length_mm + flipper_length_mm, penguins)
+summary(AOV)
+
+LM <- lm(body_mass_g ~ bill_length_mm + flipper_length_mm, penguins)
+anova(LM)
+summary(LM)
+```
+
+# how to test if model is a good fit?
+- look at R^2, usually a higher R^2 is a better fit (but only if you're assuming your data should fit a linear line)
+- Multiple R^2 will always increase if you include additional variables, that is why it's better to look at the adjusted R^2
+
+# Example to understand R^2
+
+- body mass and bill length
+- body mass and flipper length
+```{r}
+gentoo_f_penguins <- penguins %>%
+  filter(sex == "female" & species == "Gentoo")
+
+ggplot(gentoo_f_penguins, aes(body_mass_g, bill_length_mm)) +
+  geom_jitter() +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  stat_regline_equation(aes(label = ..adj.rr.label..))
+
+ggplot(gentoo_f_penguins, aes(body_mass_g, flipper_length_mm)) +
+  geom_jitter() +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  stat_regline_equation(aes(label = ..adj.rr.label..))
+
+```
+
+
+# bayesian stats
+
+- takes prior knowledge into account 
+
+Example from stack overflow:
+I have misplaced my phone somewhere in the home. I can use the phone locator on the base of the instrument to locate the phone and when I press the phone locator the phone starts beeping.
+
+Problem: Which area of my home should I search?
+
+**Frequentist Reasoning**
+I can hear the phone beeping. I also have a mental model which helps me identify the area from which the sound is coming. Therefore, upon hearing the beep, I infer the area of my home I must search to locate the phone.
+
+**Bayesian Reasoning**
+I can hear the phone beeping. Now, apart from a mental model which helps me identify the area from which the sound is coming from, I also know the locations where I have misplaced the phone in the past. So, I combine my inferences using the beeps and my prior information about the locations I have misplaced the phone in the past to identify an area I must search to locate the phone.
+```{r}
+#devtools::install_github("rasmusab/bayesian_first_aid", force = TRUE)
+female <- penguins %>%
+  filter(sex == "female")
+
+male <- penguins %>%
+  filter(sex == "male")
+
+t.test(female$body_mass_g, male$body_mass_g)
+
+# BayesFactor 
+ttestBF(female$body_mass_g, male$body_mass_g)
+
+# BayesianFirstAid
+fit <- bayes.t.test(female$body_mass_g, male$body_mass_g)
+plot(fit)
+```
+
+# Troubleshooting
+
+## Problem: create a plot with text labels 
+```{r}
+# devtools::install_github("ropenscilabs/ozbabynames")
+
+ozbabynames
+
+babynames <- ozbabynames %>%
+  filter(year == 2017 &
+           state == "New South Wales" &
+           count > 300)
+
+ggplot(babynames, aes(name, count)) +
+  geom_jitter() + 
+  facet_wrap(~sex) +
+  theme_bw()
+
+
+```
+
+## goal: add text labels to the plot, so each point is a name rather than a point or in addition to the point
+
+- See what you can come up with and share your plots on Slack!
+- We'll pick up here next week

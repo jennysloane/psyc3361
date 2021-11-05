@@ -1,0 +1,13 @@
+---
+title: "test_script"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(here)
+
+getwd() # the same as examples.Rmd! because it only matters where the root of the project is
+covid1 <- read_csv(here("data", "1_carstensen", "AgeAdvantagesEmotionCovid_Data.csv"))
+```
+

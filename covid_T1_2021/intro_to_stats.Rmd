@@ -1,0 +1,295 @@
+---
+title: "Intro to Stats in R"
+output: rmdformats::readthedown
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# load libraries
+```{r}
+library(palmerpenguins)
+library(ggpubr)
+library(jmv)
+library(rstatix)
+library(tidyverse)
+library(here)
+library(janitor)
+library(ggeasy)
+library(readxl)
+library(gt)
+library(haven)
+require(gridExtra)
+library(gtsummary)
+
+theme_set(theme_bw())
+```
+
+# Stats in R using penguins dataset
+
+# Example 1a: Are male penguins heavier than female penguins? (categorical and continuous - 2 groups: male and female)
+
+### descriptive statistics 
+```{r}
+penguins <- penguins %>%
+  na.omit()
+
+body_mass_summary <- penguins %>%
+  group_by(sex) %>%
+  summarise(mean = mean(body_mass_g), 
+            sd = sd(body_mass_g), 
+            n = n(), 
+            se = sd/sqrt(n))
+
+body_mass_summary %>%
+  gt() %>%
+  fmt_number(
+    columns = 2:5,
+    decimals = 2
+  )
+```
+
+### visualization 
+```{r}
+# bar plot
+body_mass_summary %>%
+  ggplot(aes(x = sex, y = mean, fill = sex)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                width=.2) +
+  scale_y_continuous(expand = c(0,0), limits = c(0,5000)) + # no white space between 0 and x axis
+  easy_text_size(15)
+
+# boxplot
+plot_1a <- penguins %>%
+  na.omit() %>%
+  group_by(sex) %>%
+  ggplot(aes(x = sex, y = body_mass_g, fill = sex)) +
+  geom_boxplot(alpha = 0.5) +
+  geom_jitter(alpha = 0.8) +
+  easy_text_size(15)
+
+```
+
+### statistics: we want to compare means between 2 groups... t test
+```{r}
+female <- penguins %>%
+  filter(sex == "female")
+
+male <- penguins %>%
+  filter(sex == "male")
+
+t.test(female$body_mass_g, male$body_mass_g)
+
+# or we can use jmv package
+ttestIS(formula = body_mass_g ~ sex, data = penguins) # independent samples t test. Dependent variable to the left of ~
+```
+
+### ggpubr: "publication ready"
+```{r}
+plot_1a_pub <- ggboxplot(penguins, x = "sex", y = "body_mass_g",
+                color = "sex", palette =c("deepskyblue", "darkred"),
+                add = "jitter")
+
+my_comparisons <- list(c("female", "male")) # has to be in a list
+plot_1a_pub + 
+  stat_compare_means(comparisons = my_comparisons, method="t.test") 
+# Add t.test comparisons p-value (if more than 2 groups, you can "anova") 
+```
+
+# Example 1b: Do different species have the same or different overall weight? (categorical and continuous - 3 groups)
+[https://www.datanovia.com/en/lessons/anova-in-r/](https://www.datanovia.com/en/lessons/anova-in-r/)
+
+### descriptive statistics 
+```{r}
+penguins <- penguins %>%
+  na.omit()
+
+body_mass_summary <- penguins %>%
+  group_by(species) %>%
+  summarise(mean = mean(body_mass_g), 
+            sd = sd(body_mass_g), 
+            n = n(), 
+            se = sd/sqrt(n))
+
+body_mass_summary %>%
+  gt()
+
+penguins %>%
+  group_by(species) %>% 
+  get_summary_stats(body_mass_g, type = "full")
+
+penguins %>% 
+  group_by(species) %>% 
+  identify_outliers(body_mass_g)
+
+```
+
+### visualization 
+```{r}
+# identical code as in example 1a but now species rather than sex
+
+plot_1b <- penguins %>%
+  na.omit() %>%
+  group_by(species) %>%
+  ggplot(aes(x = species, y = body_mass_g, fill = species)) +
+  geom_boxplot(alpha = 0.5) +
+  geom_jitter(alpha = 0.8) +
+  easy_text_size(15)
+```
+
+### statistics: we want to compare means between 3 groups... anova
+```{r}
+# we can still do multiple t tests (but should really use a correction if we do this)
+my_comparisons <- list(c("Adelie", "Chinstrap"), c("Chinstrap", "Gentoo")) # has to be in a list
+plot_1b + 
+  stat_compare_means(comparisons = my_comparisons, method="t.test")
+
+# it's better if we do an anova
+
+# Compute the analysis of variance
+aov_1b <- aov(body_mass_g ~ species, data = penguins)
+# Summary of the analysis
+summary(aov_1b)
+
+# other ways to do anova
+# note slightly different results for welch's and fisher's 
+# "Welch’s ANOVA isn’t sensitive to unequal variances" https://statisticsbyjim.com/anova/welchs-anova-compared-to-classic-one-way-anova/
+anovaOneW(formula = body_mass_g ~ species, data = penguins, fishers = TRUE) # jmv
+anova_test(penguins, body_mass_g ~ species) # rstatix
+penguins %>% welch_anova_test(body_mass_g ~ species) # rstatix
+```
+
+
+# Example 2: are penguin bills length correlated with flipper length? (continuous and continuous)
+
+### descriptive statistics 
+```{r}
+penguins %>%
+  summarise(across(contains("length"), mean)) %>%
+  gt()
+
+```
+
+### visualization 
+```{r}
+ggplot(penguins, aes(bill_length_mm, flipper_length_mm)) +
+  geom_point() +
+  geom_smooth(method = "lm") 
+```
+
+### statistics: correlation test
+```{r}
+cor(penguins$bill_length_mm, penguins$flipper_length_mm)
+
+cor.test(penguins$bill_length_mm, penguins$flipper_length_mm)
+
+```
+
+### ggpubr: color by species
+```{r}
+ggscatter(penguins, x = "bill_length_mm", y = "flipper_length_mm",
+          size=1.5,
+          add = "reg.line", # Add regression line
+          conf.int = TRUE # Add confidence interval
+          )
+
+ggscatter(penguins, x = "bill_length_mm", y = "flipper_length_mm",
+          size=1.5,
+          color = "species",
+          shape = "species",
+          palette = c("#00AFBB", "#E7B800", "#FC4E07"),
+          add = "reg.line", # Add regression line
+          conf.int = TRUE # Add confidence interval
+          ) +
+  stat_cor(aes(color = species), label.x = 30) # Add correlation coefficient (can add this line of code to regular ggplot too!)
+```
+
+
+# Example 3: Do the number of penguin species vary by year? (categorical and categorical)
+```{r}
+penguins
+
+# descriptive statistics
+peng_table <- table(penguins$species, penguins$year)
+
+# visualization
+ggplot(penguins, aes(year, ..count..)) +
+  geom_bar(aes(fill = species), position = "dodge")
+  
+# chi squared test
+chisq.test(peng_table)
+```
+
+
+# ANOVA
+[https://towardsdatascience.com/doing-and-reporting-your-first-anova-and-ancova-in-r-1d820940f2ef](https://towardsdatascience.com/doing-and-reporting-your-first-anova-and-ancova-in-r-1d820940f2ef)
+```{r}
+penguins
+
+mydata <- iris
+
+# test assumption of homogeneity of variance
+library(car)
+leveneTest(bill_length_mm~species,penguins) # came back insignificant which is good. This means the variance between bill length and species is not significantly different so we can move forward. does not violate assumption of homogeneity of variance
+
+anova_results = aov(bill_length_mm ~ species, penguins)
+summary(anova_results)
+
+library(psych)
+describeBy(penguins$bill_length_mm, penguins$species)
+```
+
+## Report ANOVA results
+We observed differences in bill lengths between the three species of Adelie (M=38.82), Chinstrap (M=48.83), and Gentoo (M=47.57). An ANOVA showed that these differences between species were significant, i.e. there was a significant effect of the species on the bill length of the penguins, F(2,330)=397.3, p<.001.
+
+# ANCOVA
+```{r}
+ancova_results=aov(bill_length_mm ~ species+sex, penguins) # controlling for body sex
+
+# summary function won't work here
+Anova(ancova_results, type="III")
+```
+
+## Report ANCOVA results
+The covariate, sex, was significantly related to the penguins' bill length, F(1,329)=210.17, p<.001. There was also a significant effect of the species of the penguins on the bill length after controlling for sex, F(2,329)=645.44, p<.001.
+
+# linear regression
+lm([target variable] ~ [predictor variables], data = [data source])
+```{r}
+lm_penguin = lm(bill_length_mm~body_mass_g , data = penguins) #Create the linear regression
+summary(lm_penguin)
+```
+[https://www.statsimprove.com/en/what-is-the-difference-between-anova-and-regression-and-which-one-to-choose/](https://www.statsimprove.com/en/what-is-the-difference-between-anova-and-regression-and-which-one-to-choose/)
+
+# Group 2
+
+- trouble reproducing Study 2 Empathy Physical Distancing plot
+```{r}
+group2 <- read_excel(here("covid_T1_2021", "data", "3_pfattheicher", "Study2.xlsx"))
+
+fig1 <- group2 %>%
+  rowid_to_column("ID") %>% 
+  select(ID, ve, sd, sdR)
+
+# raw data, this doesn't have any values recoded
+ggplot(fig1, aes(x=ve, y=sd)) +
+  geom_smooth(method = "lm", colour = "black", se = TRUE) +
+  theme_bw() +
+  ylim(1,5) +
+  labs(title = "Study 2: German Sample", 
+       x = "Empathy",
+       y = "Social Distance")
+
+# there's actually another variable sdR that already accounts for the reverse coding
+ggplot(fig1, aes(x=ve, y=sdR)) +
+  geom_smooth(method = "lm", colour = "black", se = TRUE) +
+  theme_bw() +
+  ylim(1,5) +
+  labs(title = "Study 2: German Sample", 
+       x = "Empathy",
+       y = "Social Distance")
+```

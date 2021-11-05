@@ -1,0 +1,167 @@
+---
+title: "QnA Week 10"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(ggeasy)
+library(janitor)
+library(here)
+library(haven)
+
+# tinytex::install_tinytex()
+#tinytex::tlmgr_install("pdfcrop") # to knit to pdf
+# https://bookdown.org/yihui/rmarkdown/pdf-document.html
+```
+
+# knitting to PDF
+- See notes [here](https://rpubs.com/jsloane/knit_pdf_word)
+
+# Trouble shooting tips
+- go through code line by line to try to find exactly where you're problem is
+- look at your dataset before you begin adding pipes to it to make sure you have all the variables you need 
+
+# Should graphs use summarised data?
+
+- while you certainly can create graphs using summarised data, I think it's often better to create graphs with the full dataset 
+- example to show you why 
+
+## create graph using summarise function 
+
+```{r}
+library(readxl)
+study4 <- read_excel("data/3_pfattheicher/Study4.xlsx") %>%
+  rowid_to_column("ID") %>%
+  zap_labels()
+
+stats_ex <- study4 %>%
+  filter(bed == 2) %>%
+  select(ID, Age, empa) %>%
+  mutate(age_group = case_when(
+    Age < 20 ~ "Teens",
+    Age > 19 & Age < 30 ~ "Twenties",
+    Age > 29 & Age < 40 ~ "Thirties",
+    Age > 39 & Age < 50 ~ "Fourties",
+    Age > 49 & Age < 60 ~ "Fifties",
+    Age > 59 ~ "Elderly")
+  ) %>%
+  group_by(age_group) %>%
+  summarise(mean_emp = mean(empa))
+
+stats_ex$age_group <- fct_relevel(stats_ex$age_group,
+  c("Teens", "Twenties", "Thirties", "Fourties", "Fifties", "Elderly"))
+levels(stats_ex$age_group)
+
+ggplot(stats_ex, aes(age_group, mean_emp, fill=age_group)) +
+  geom_col() # this graph is okay, but it's missing some useful information such as error bars 
+```
+
+## create graph WITHOUT summarise function 
+```{r}
+# create graph using all of the data (no summarising), same code just withouth group_by and summarise()
+stats_ex2 <- study4 %>%
+  filter(bed == 2) %>%
+  select(ID, Age, empa) %>%
+  mutate(age_group = case_when(
+    Age < 20 ~ "Teens",
+    Age > 19 & Age < 30 ~ "Twenties",
+    Age > 29 & Age < 40 ~ "Thirties",
+    Age > 39 & Age < 50 ~ "Fourties",
+    Age > 49 & Age < 60 ~ "Fifties",
+    Age > 59 ~ "Elderly")
+  ) 
+
+stats_ex2$age_group <- fct_relevel(stats_ex2$age_group,
+  c("Teens", "Twenties", "Thirties", "Fourties", "Fifties", "Elderly"))
+levels(stats_ex2$age_group)
+
+ggplot(stats_ex2, aes(age_group, empa, fill=age_group)) +
+  geom_boxplot() + # now we can use boxplot! much more informative 
+  stat_summary(fun="mean")
+```
+
+
+# Anova question
+
+- stats - compare means of multiple groups... ANOVA 
+- always use the full dataset when running a model/analysis
+```{r}
+# what happens if we try to run an anova on this summarised data
+aov_test <- aov(mean_emp~age_group, stats_ex)
+summary(aov_test) # something is not right here...
+
+
+aov_test2 <- aov(empa~age_group, stats_ex2) # now our model has all of the data points so this will work
+summary(aov_test2)
+```
+
+
+## Error message 
+
+- tip if you get an error message: run your code line by line to find exactly where the problem is 
+- if you find your problem is within a long string of pipes, go through your pipe piece by piece
+
+# Combining multiple datasets
+```{r}
+data_1_raw = read_csv('data/4_tybur/WTR_Comfort_S1.csv')
+data_2 = read_csv('data/4_tybur/WTR_Comfort_S2.csv')
+data_3 = read_csv('data/4_tybur/WTR_Comfort_S3.csv')
+
+# select which columns we want 
+data1 <- data_1_raw %>%
+  select(participant, sex, age, income, DS1)
+
+data2 <- data_2 %>%
+  select(participant, sex, age, income, DS1)
+
+data3 <- data_3 %>%
+  select(participant, sex, age, income, DS1)
+
+# combine data together (this is assuming participants are different in each study)
+data_all <- rbind(data1, data2, data3)
+```
+
+# stacked bar plot and how to round 
+```{r}
+# how to round
+COVID <- read_sav(here("data","8_smith",  "believing.sav")) %>%
+  rowid_to_column("ID")
+
+COVIDexplore1 <- COVID %>%
+  mutate(region1 = case_when(region == 2 ~ "South", region == 4 ~ "South", region == 3 ~ "North", TRUE ~ "NA")) %>%
+  filter(region1 != "NA") %>% 
+  group_by(region1) %>% 
+  summarise(mean1 = round(mean(q9worry), 2)) # add round()
+
+ggplot(data=COVIDexplore1, aes(x=region1, y= mean1, fill = region1)) + 
+  geom_bar(stat = "identity", width = .5) + 
+  scale_y_continuous(limits = c(0,5)) + 
+  geom_text(aes(label = mean1), vjust=-0.8, size=5)+
+  theme_minimal() + easy_remove_legend_title() + easy_remove_legend() + easy_x_axis_labels_size(10) + easy_y_axis_title_size(12) + easy_x_axis_title_size(12) + labs(x = "Region Divide", y = "Mean Worry", title = "Mean Worry for North vs South") + theme(plot.title = element_text(vjust = 0.5, hjust = 0.5), axis.title.y = element_text(vjust = 2))
+
+# stacked bar plot
+COVIDexplore2 <- COVID %>%
+  mutate(employment = case_when(Working == 0 ~ "Not Working", Working == 1 ~ "Working", TRUE ~ "NA")) %>%
+  filter(employment != "NA") %>%
+  group_by(employment, region) %>%
+  count()
+
+COVIDexplore2 <- zap_labels(COVIDexplore2) # remove labels
+
+COVIDexplore2$employment <- as.factor(COVIDexplore2$employment)
+COVIDexplore2$region <- as.factor(COVIDexplore2$region)
+  
+ggplot(data=COVIDexplore2, aes(x=region, y=n, fill = employment)) + 
+  geom_bar(position = "stack", stat = "identity")
+```
+
+
