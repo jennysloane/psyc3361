@@ -1,0 +1,50 @@
+---
+title: "RStudio Basics"
+subtitle: "QnA T2 Week 3"
+output: rmdformats::readthedown
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Rstudio = an integrated development environment (IDE) for R
+  - Console vs script: The script is where you want to write any code you wish to save for future use. Whenever you run code from your script, it will print in the console but if you do something in the console, it won't appear in your script. The console is good for doing things that don't need to be saved or things you know you only need to do once like installing packages
+  - R script vs R Markdown file: markdown files are ideal for taking notes and you have the ability to knit your files to different document types like html or pdf. I **always** use markdown
+  - Global environment: where your variables are saved, remember you can use the assignment operator <- to create and save new variables
+  - Built-in datasets (mtcars, iris)
+  - Pancake feature! This is essentially an outline of your markdown file where # are the headings that appear in your outline
+
+# What is a chunk?
+- Chunks are part of R Markdown where you write your code, so you'll need to create a new chunk if you want to write R code and you can leave notes outside of the chunks
+- You can use crt+alt+I (probably cmd on mac) to create a new chunk 
+- In every chunk there is code that looks like this: `{r...}`. Here you can adjust the chunk settings. For example, you can set a chunk name (no spaces) like this: `{r chunk-name}` and there are several other options you can set like warning, message, include, echo. Here's another example: `{r example-chunk, warning = FALSE, message = FALSE}` 
+- Check out the rmarkdown cheatsheet for more info on these options by going to Help &rarr; Cheatsheets &rarr; R Markdwon Cheat Sheet (cheatsheets are super useful resource and there are so many cheatsheets for different packages and topics in R)
+
+# Installing vs loading packages
+  - You only need to install packages once on your computer (may need to update them occasionally)
+  - However, you need to load the package *every time* you use R, so make sure to call `library()` to load all the packages you need
+  
+```{r warning=FALSE, message=FALSE}
+# I always have a separate chunk at the top of my script that has all my libraries I need to load in
+# I set warning=FALSE and message=FALSE in this chunk
+library(tidyverse)
+library(ggeasy)
+```
+  
+  - Test #1: try to install the package "rstatix"
+  - Test #2: try to install the package "emo"
+  - Installation errors [blog](https://www.littlemissdata.com/blog/r-package-install)
+  - If the package is not part of CRAN, you should try to find the repository on github and install via devtools (so you must also install devtools)
+
+# Packages vs functions
+  - What should you do if you don't understand a function?
+  - R Help documentation is great for providing information and examples of functions: in the console you can just write ? with the name of the function (e.g. ?mean) and the help page will pop up. This will give you a description of the function, usage, arguments, and examples
+  
+# Error messages??
+  - Goolge! I guarantee Google will be your best friend when it comes to learning R. It takes time to learn what you should Google, but you'll get there
+  - Restart R: sometimes (especially after installing a new package) you just need to restart R and your code will work. To restart R, you can either close out of R completely and reopen it or you can try going to Session &rarr; Restart R
+  
+ 

@@ -1,0 +1,258 @@
+---
+title: "Descriptive Stats, Tables, & ggplot Challenege Answers"
+subtitle: "QnA T2 Week 5"
+output: rmdformats::readthedown
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(psych)
+library(palmerpenguins)
+library(janitor)
+library(gt)
+library(papaja)
+library(ggeasy)
+library(patchwork)
+```
+
+## descriptive stats
+- example from brick paper
+  - load in data
+  - clean names
+  - create new variable for demographic analyses
+  - `tabyl()` and add % - ?tabyl and scroll all the way down and you'll see examples
+
+  - age: mean, min, max 
+  - sex: n and percentage
+  - `case_when()` example
+```{r}
+load(file = "brick/merged.rda")
+
+mydata_raw <- merged %>%
+  clean_names() %>%
+  filter(study == "Prolific")
+
+n_subj = length(unique(mydata_raw$id))
+
+mydata_demo <- mydata_raw %>%
+  select(id, age, female) %>%
+  na.omit() %>%
+  distinct(id, age, female) %>%
+  filter(female == 1 | female == 2)
+
+mydata_demo %>%
+  summarise(mean_age = mean(age),
+            sd_age = sd(age),
+            min_age = min(age))
+
+describe(mydata_demo$age) # psych package
+
+# tabyl()
+mydata_demo %>%
+  tabyl(female) %>%
+  adorn_pct_formatting()
+
+range(mydata_demo$age)
+# case_when()
+data <- mydata_demo %>%
+  mutate(age_group = case_when(age < 30 ~ "youngest",
+                               age < 55 & age >= 30 ~ "middle",
+                               age >= 55 ~ "oldest"))
+
+
+#cut_number(mydata_demo$age, 3)
+
+mydata_demo %>%
+  mutate(gender = case_when(female == 1 ~ "female",
+                            female == 2 ~ "male"))
+
+mydata_demo %>%
+  mutate(age_group = case_when(age < 50 ~ "younger",
+                            age >= 50 ~ "older"))
+```
+
+
+## formatting tables
+
+- `gt` package
+```{r}
+penguins_data <- penguins %>% 
+  group_by(species) %>% 
+  summarise(mean_bill = mean(bill_length_mm, na.rm = TRUE),
+            sd_bill = sd(bill_length_mm, na.rm = TRUE)) 
+
+penguins_data %>%
+  gt()  %>%
+  fmt_number( # format numbers to 2 decimal places
+    columns = vars(mean_bill, sd_bill), 
+    decimals = 1
+  )  %>%
+  tab_header( # title and subtitle
+    title = "Descriptive Stats",
+    subtitle = "Penguin Data"
+  ) %>%
+  tab_footnote( # you can add 1 or more footnotes
+    footnote = "species with bills > 40", 
+    locations = cells_body(
+      columns = vars(mean_bill), 
+      rows = mean_bill > 40
+    )
+  )
+
+```
+  
+- apa_table() from papaja package
+- knit to see table
+```{r}
+apa_table(penguins_data)
+
+```
+
+## apply family 
+- apply functions are a family of functions in base R which allow you to repetitively perform an action, such as getting the  mean for multiple columns 
+- [apply functions - more info ](https://ademos.people.uic.edu/Chapter4.html)
+
+  - apply: use on a matrix either rows or columns
+  - lapply: apply a function to a list 
+  - sapply: a version of lapply but results are not a list
+
+- in this example, we want to get the mean of 1) bill_length_mm, 2) bill_depth_mm, 3) flipper_length_mm, and 4) body_mass_g
+```{r message=FALSE, warning=FALSE}
+# create a dataset with all the variables we want to get the mean
+penguin_mean <- penguins %>%
+  select(bill_length_mm:body_mass_g) 
+
+# we could do this... but this is very repetitive and we always want to try to avoid repeating code
+mean(penguin_mean$bill_length_mm, na.rm = TRUE)
+mean(penguin_mean$bill_depth_mm, na.rm = TRUE)
+mean(penguin_mean$flipper_length_mm, na.rm = TRUE)
+mean(penguin_mean$body_mass_g, na.rm = TRUE)
+
+# so, we can use apply and do everything in 1 line of code :) 
+# ?apply to see the what the arguments mean
+
+# X = your data 
+# MARGIN = do you want to perform the same action on rows = 1 or columns = 2 (we want columns in this case)
+# FUN = the function you want to apply - in this case we want mean()
+apply(X = penguin_mean, MARGIN = 2, FUN = mean, na.rm = TRUE)
+
+
+```
+
+# Haigh paper
+
+- advice: use glimpse on a subset of your dataframe or else it can be very overwhelming
+
+1. How do we add both labels ‘Conflict’ and ‘Format’ on X-axis?
+   - I haven't done this before - it may be possible with ggplot, but I personally don't think it looks very good how they have it plotted
+   - You can try to recode your variables so you only need 1 label (e.g. generic conflict, generic non-conflict, qualified conflict, qualified non-conflict)
+
+2. How to add the means and confidence intervals onto the plot? Is this possible with ggplot or another package needed? While googling, we stumbled across pirateplot- maybe this is something we could use instead of ggplot?
+   - nicely done discovering the pirateplot! I had a look at the authors code and that is exactly the package they used to create their plots :)
+   - option #1: do the best you can to recreate the plots using ggplot. you can add multiple layers to have a violin plot + mean + error bars + boxplot but it won't look exactly the same as the plots in the paper (which is fine!)
+   - option #2: spend some time trying to learn `pirateplot()` and if you get stuck you can always check the authors code for help 
+
+3. How to get plots to appear in one graph instead of having it separated by the variable inside the facet_wrap() function?
+   - check out the `patchwork` package 
+```{r}
+# patchwork package
+my_penguins <- penguins %>%
+  na.omit()
+
+plot1 <- ggplot(my_penguins, aes(bill_length_mm, bill_depth_mm)) +
+  geom_point() +
+  geom_smooth() +
+  theme_bw()
+
+plot2 <- ggplot(my_penguins, aes(bill_length_mm, flipper_length_mm)) +
+  geom_point() +
+  geom_smooth() +
+  theme_bw()
+
+plot1 + plot2 
+```
+
+
+# Walter paper
+
+1. We are still not sure if we need to reproduce the b values in the paper.
+   - I also didn't think it was clear from the paper how b was calculated. See if you're able to find where the authors calculate the b values in their script
+  
+2. We are struggling to get our summary statistics to 2 decimal places. 
+   - as long as your data has more decimals than you'd like, you should be able to use round() like in the example below. It won't work if you are trying to add more decimal places 
+
+3. When we created our age_diff_sdmp variable, we had to filter out participants who reported a mate age of 10 or under as these participants were not analysed for age differences. However, we didn’t want to filter out these participants from other analyses. So we created a new dataframe, age_diff_sdmp. For our plots, ideally we’d want the age_difference variable to be in our main sdmp dataframe too. Was there a way that we could have added this variable without creating a new dataframe? Or is it a case of combining the two dataframes together in some way to get the the age_difference variable into the sdmp dataframe?
+   - Not sure I followed this, but I would create the age_difference in your main dataset so that it exists for everyone and then I'd create a sub dataset with age < 10 filtered out and only use that for the plots that specify those participants were removed 
+  
+4. This is not as important but I am struggling to explain in my code comments why 0 and 1 in the code below need backticks around them.
+   - hmmm interesting maybe something to do with naming the arguments? but I'm not entirely sure
+   - check out case_when() I find this much easier to understand
+  
+```{r}
+mtcars %>%
+  summarise(mean = mean(disp),
+            n = n())
+
+mtcars %>%
+  summarise(mean = round(mean(disp), 2),
+            n = n())
+```
+
+# Nichols paper
+1. What can we do with the data to understand what the variables are?
+   - check for codebook
+   - if no codebook, work together to interpret each variable - that's really all you can do 
+
+
+# ggplot challenge answers!
+
+```{r}
+my_penguins <- penguins
+
+my_penguins_G <- my_penguins %>%
+  filter(species == "Gentoo") %>%
+  na.omit() # this line removes missing values from the dataset
+
+ggplot(my_penguins_G, aes(x=bill_length_mm, y=body_mass_g)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title = "Relationship between bill length \nand body mass of Gentoo penguins",
+       x = "Bill Length (mm)",
+       y = "Body Mass") +
+  easy_text_size(20)
+```
+
+```{r}
+ggplot(my_penguins_G, aes(x=bill_length_mm, y=body_mass_g, color=sex)) +
+  geom_point() +
+  geom_smooth() +
+  facet_wrap(~sex, scales = "free_x") +
+  labs(title="Relationship between bill length and body mass \nof Gentoo penguins", 
+       subtitle = "Divided and colored by sex",
+       x="Bill Length (mm)", 
+       y="Body Mass") +
+  theme_bw() +
+  easy_remove_legend() +
+  easy_text_size(15)
+```
+
+```{r}
+penguins_bm <- my_penguins %>% 
+  na.omit()
+
+ggplot(penguins_bm, aes(x = body_mass_g, fill=species)) + # what happens if you use color? what happens if you put fill outside of aes()
+  geom_histogram(bins = 20, alpha=0.5) +
+  facet_wrap(~species) +
+  labs(title="Body mass of different species of penguins",
+       subtitle="separated by species",
+       x="Body Mass") +
+  theme_bw()  +
+  easy_text_size(15)
+```
+

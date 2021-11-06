@@ -1,0 +1,205 @@
+---
+title: "Useful Functions"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(psych)
+library(palmerpenguins)
+library(janitor)
+library(gt)
+library(papaja)
+library(ggeasy)
+library(patchwork)
+library(ggbeeswarm)
+```
+
+- favorite function!
+- more on tables
+  - when creating tables, avoid typing numbers out 
+  - fmt_number() should be able to list multiple columns 
+- summarise_across
+- learn how to write functions 
+- knit to pdf/word (maybe next week)
+
+## case_when() example
+```{r}
+x = 11:60
+
+mydata <- tibble(
+  id = 1:50, 
+  age = sample(x)
+)
+
+range(mydata$age)
+
+mydata %>%
+  mutate(age_groups = case_when(age < 35 ~ "Younger",
+                                age >= 35 ~ "Older"))
+
+```
+
+## sd and se
+```{r}
+library(palmerpenguins)
+penguins <- penguins %>%
+  na.omit()
+
+# get mean, sd, n, se body mass for males and females
+penguins %>%
+  group_by(sex) %>%
+  summarise(mean_bm = mean(body_mass_g),
+            sd_bm = sd(body_mass_g),
+            n_bm = n(),
+            se = sd_bm/sqrt(n_bm))
+```
+
+## summarise across & mutate across
+```{r}
+penguins %>%
+  summarise(across(contains("mm"), list(mean_peng = mean, sd_peng = sd), na.rm=TRUE))
+
+penguins %>%
+  mutate(across(species:island, as.character))
+
+```
+
+## gt 
+- https://gt.rstudio.com/articles/intro-creating-gt-tables.html
+- https://rpubs.com/jsloane/QnA_week6
+```{r}
+# exibble (example tibble) is part of the gt package
+
+# I'm adding a couple of extra columns to demonstrate what we can do with gt
+my_table <- exibble %>%
+  mutate(perc = c(10, 20, 30, 40, 50, 60, 70, 80), 
+         sd = c(.1, .1, .25, .2, .1, .1, .3, .25))
+
+my_table %>%
+  gt()
+
+my_table %>%
+  gt(
+    rowname_col = "row",
+    groupname_col = "group"
+  ) %>%
+  cols_hide( # hide columns
+    columns = vars(date, time, fctr, char, datetime) # make sure to use vars()
+  ) %>%
+  fmt_number( # format numbers to 2 decimal places
+    columns = vars(num, currency), 
+    decimals = 2
+  ) %>%
+  fmt_number( ### get parentheses!
+    columns = vars(sd),
+    pattern = "({x})"
+  )  %>%
+  fmt_percent( # format percent
+    columns = vars(perc), 
+    scale_values = FALSE, # by default this is set to try which multiplies the variable by 100
+    decimals = 0
+  ) %>%
+  cols_merge( # merge columns into 1
+     columns = vars(perc, sd) #,
+    # pattern = "{1} ({2})" # or this also works to add parentheses in columns you are merging
+  ) %>%
+  cols_label( # added this
+    perc = "% (sd)",
+  ) %>%
+  fmt_currency( # add currency 
+    columns = vars(currency),
+    currency = "AUD"
+  ) %>%
+  tab_header( # title and subtitle
+    title = md("Example Table from **exibble**"), # md is to allow markdown formatting
+    subtitle = md("`exibble` is an gt dataset")
+  ) %>%
+  tab_footnote( # you can add 1 or more footnotes
+    footnote = "These are lower prices", 
+    locations = cells_body(
+      columns = vars(currency), 
+      rows = currency < 15
+    )
+  ) %>%
+  tab_footnote(
+    footnote = "These big numbers", 
+    locations = cells_body(
+      columns = vars(num), 
+      rows = num > 500
+    )
+  )
+```
+
+## functions
+```{r}
+# y axis = bill depth 
+penguins1 <- ggplot(penguins, aes(bill_length_mm, bill_depth_mm, color=sex)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  labs(title = "bill length x bill depth")
+
+
+# y axis = flipper length
+penguins2 <- ggplot(penguins, aes(bill_length_mm, flipper_length_mm, color=sex)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  labs(title = "bill length x flipper length")
+
+penguins1 + penguins2
+
+## function
+
+penguins_plot <- function(y_var, plot_title) {
+  
+  ggplot(penguins, aes(bill_length_mm, y_var, color=sex)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    theme_bw() +
+    labs(title = plot_title)
+  
+}
+
+
+plot1 = penguins_plot(y_var = penguins$bill_depth_mm, plot_title = "bill length x bill depth")
+
+plot2 = penguins_plot(y_var = penguins$flipper_length_mm, plot_title = "bill length x flipper length")
+
+
+plot1 + plot2
+```
+
+
+## Walter paper
+- Figure 4, try to figure out which point is the outlier
+- add text to see which point is which country (looks like your group already solved this!)
+- What does the tilde sign mean, for example in the context of, case_when(sex == 0 ~ "female") ?
+- Last week, we used the line labs(x = expression(paste("Mahalanobis ", italic("D"))) to make the “D” in our figure show up in italics. We figured out that paste() converts something into a string and allows us to combine strings together. However, we are not quite sure what expression() is doing. The definition we got from the R Documentation is that expression() refers to “R objects, typically calls, symbols or constants.” Is it just a general function to put stuff in, kind of like c() which is used to create a vector?
+
+## Harris paper
+- error bars cut off after flipping the axis - potential data points out of the ylim?
+- Given that the original graphs in the articles are flipped, would it be appropriate for us to also format the graphs so that it fully replicates the graph? Wouldn’t this count as malpractice?
+- Why does the Hmsic package need to be installed in order for errorbars to appear when the errorbars function is part of the ggplot2 package?
+- Are there any alternative functions to creating gradients in scatterplots?
+
+- think about what would you have been able to do without the author's code? 
+
+*Thenuka's group - mean centered variables* I think Harris paper
+- Hannah's learning log: We first mean centered the variables by subtracting the grand mean from the attitudes mean and created a new column with these values labelled meanA_c.
+
+
+## Nichols paper
+- slow/fast scale 1-5 reverse coded slow - 7
+- slow 5 = fastest
+
+- The Rmd file in OSF computes the tempo variable in the following manner: tempo = (fast + abs(slow-7))/2 So, they’ve taken an average on the fast variable and the reverse coding of the slow variable but we are not sure WHY the slow variable (originally measured on a scale of 1-5) has been reverse coded using -7 and not -6? It doesn’t make much sense to us because you end up with the slow variable being measure on a scale of 2-6, and not 1-5 like the fast variable?
+- table: replace NA with -
+- remove column label from first column
+- change x axis value labels
+
