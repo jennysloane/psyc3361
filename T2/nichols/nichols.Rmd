@@ -1,0 +1,434 @@
+---
+title: "nichols"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(here)
+library(haven)
+library(psych)
+library(ggpubr)
+library(PupillometryR)
+library(ggeasy)
+library(gt)
+```
+
+# Jess code
+```{r}
+
+data1 <- read_csv("nichols/Nichols_et_al_dataset_V2.0.csv")
+
+# cleaning the data for use:
+# filtering out participants that weren't included in the final data
+# renaming variables to make more sense
+data1 <- data1 %>% 
+  filter(include == 0) %>% 
+  rename(cond = con,
+         claimpercent = claim,
+         claimmoney = moneyclaim,
+         #CT_practice = completion.time..practice.included.,
+         #CT_payments = completion.time..payments.only.,
+         religiosity = relig,
+         religion = Religion) %>%
+   select(site, id, cond, claimpercent, religious)
+
+data1 <- data1 %>% 
+  na.omit() %>%
+  filter(cond == 4) 
+
+data1 %>% group_by(site) %>%
+  summarise_at(c("religious", "claimpercent"), list(mean,sd), na.rm = TRUE) %>%
+  gt()
+
+data1 %>% 
+  group_by(site) %>% 
+  na.omit() %>%
+  summarise(r = cor(religious, claimpercent)) 
+
+site1 <- data1 %>%
+  filter(site == 1)
+cor(site1$religious, site1$claimpercent)
+
+cor.test(site1$religious, site1$claimpercent)
+```
+
+
+- author's reverse coded relig and ritual for some reason?
+```{r}
+nichols_raw <- read_csv(here("nichols", "Nichols_et_al_dataset_V2.0.csv"))
+
+length(unique(nichols_raw$id))
+
+# author's have this code: 
+# Re-order conditions to: religous, secular, noise, and control
+# dat$con[dat$con==4] <- 0 # make religious prime the reference category
+# dat$con[dat$con==1] <- 4
+# dat$con[dat$con==3] <- 1
+# dat$con[dat$con==4] <- 3 # another 4 here because they've recoded so now 0, 1, 2, 3 and no 4s
+
+nichols <- nichols_raw %>%
+  clean_names() %>%
+  filter(include == 0) %>%
+  mutate(relig = abs(relig-5), # reverse coding
+         ritual = abs(ritual - 7), 
+         claim = claim*100)
+
+nichols$con[nichols$con==4] <- 0 # make religious prime the reference category
+nichols$con[nichols$con==1] <- 4
+nichols$con[nichols$con==3] <- 1
+nichols$con[nichols$con==4] <- 3
+
+# treatment variable
+nichols$con<-factor(nichols$con,levels= c(0,1,2,3),
+                  labels = c("Religious", "Secular", "Noise","Control"))
+
+nichols$site<-factor(nichols$site,levels= c(1,2,3),
+                 labels = c("USA", "CZ","JP"))
+
+length(unique(nichols$id))
+
+# jess code
+nichols %>% 
+  select(site, id, con, claim, religious) %>%
+  group_by(site) %>%
+  summarise_at(c("religious", "claim"), list(mean,sd), na.rm = TRUE) %>%
+  gt()
+
+```
+
+# demographics
+```{r}
+glimpse(nichols)
+
+demo <- nichols %>%
+  select(sex, age, site)
+
+demo %>%
+  group_by(site) %>%
+  count()
+
+describe(demo)
+
+
+```
+
+# Table 1
+- only got data for claim but the rest should be the same 
+```{r}
+glimpse(nichols)
+
+table1_claim <- nichols %>%
+  select(id, con, claim, sacred, sad, happy) %>%
+  group_by(con) %>%
+  summarise(mean_claim = mean(claim),
+            sd_claim = sd(claim))
+table1_claim
+
+table1_sacred <- nichols %>%
+  select(id, con, sacred) %>%
+  drop_na(sacred) %>%
+  group_by(con) %>%
+  summarise(mean = mean(sacred),
+            sd = sd(sacred))
+table1_sacred
+
+
+```
+
+
+# Figure 1
+- https://peerj.com/preprints/27137v1.pdf
+- still need to add boxplots link above was helpful
+```{r}
+#remotes::install_github('jorvlan/raincloudplots')
+
+fig1 <- nichols %>%
+  select(id, con, claim, site)
+
+fig1$site <- as.factor(fig1$site)
+fig1$con <- as.factor(fig1$con)
+
+fig1_summary <- fig1 %>%
+  group_by(con) %>%
+  summarise(mean = mean(claim, na.rm = TRUE),
+            sd = sd(claim, na.rm = TRUE),
+            n = n(), 
+            se = sd/sqrt(n))
+
+
+ggplot(fig1, aes(con, claim, fill=con)) +
+  coord_flip() +
+  geom_flat_violin(position = position_nudge(x=.1, y=0), adjust=2) +
+  geom_col(data = fig1_summary, aes(x=as.numeric(con)-.25, y= mean), position = position_nudge(.15), size = .2, width=.3) +
+  geom_errorbar(data = fig1_summary, aes(as.numeric(con)-.25, y = mean, ymin=mean-se, ymax=mean+se), position = position_nudge(.15), color = "black", width = 0.1, size = 0.8) + 
+  theme_bw() +
+  easy_remove_legend()
+
+
+# # angelina 
+# ggplot(fig1, aes(x = con, claim, fill=con)) +
+#   coord_flip(
+#   ) +
+#   geom_col(
+#     position = position_nudge(x=-.4, y=0),
+#     width = .3
+#   ) +
+#   ggdist::stat_halfeye(
+#     adjust = .5,
+#     width = .5,
+#     .width = 0,
+#     point_colour = NA
+#   )  +
+#   ylab("Percent Claimed")
+
+fig1b_summary <- fig1 %>%
+  group_by(site) %>%
+  summarise(mean = mean(claim, na.rm = TRUE),
+            sd = sd(claim, na.rm = TRUE),
+            n = n(), 
+            se = sd/sqrt(n))
+
+ggplot(fig1, aes(site, claim, fill=site)) +
+  coord_flip() +
+  geom_flat_violin(position = position_nudge(x=.1, y=0), adjust=2) +
+  geom_col(data = fig1b_summary, aes(as.numeric(site)-.25, mean), position = position_nudge(.15), size = .2, width=.3) +
+  geom_errorbar(data = fig1b_summary, aes(as.numeric(site)-.25, y = mean, ymin=mean-se, ymax=mean+se), position = position_nudge(.15), color = "black", width = 0.1, size = 0.8) + 
+  theme_bw() +
+  easy_remove_legend()
+
+```
+
+
+# Figure 2
+- note: need to use coord_cartesian instead of just ylim() or will lose data when try to rescale the plot
+```{r}
+glimpse(nichols)
+
+fig2a <- nichols %>%
+  select(con, relig, ritual, claim) %>%
+  drop_na(relig, ritual)
+
+fig2a_relig <- fig2a %>%
+  filter(con == "Religious")
+
+
+ggplot(fig2a, aes(relig, claim, group = con, color = con)) +
+  geom_smooth(method = "lm", se=FALSE, show.legend = TRUE) +
+  geom_smooth(data = fig2a_relig, method = "lm", level = 0.9, show.legend = FALSE) +
+  coord_cartesian(ylim = c(0,50)) +
+  #ylim(0,100) +
+  theme_classic() +
+  easy_remove_legend_title() +
+  theme(legend.key = element_rect(colour = "transparent", fill = c(1,2,3,4)))
+  
+
+
+ggplot(fig2a, aes(relig, claim, color = con)) +
+  geom_smooth(formula = method = "lm") + #method = "lm" creates a straight line of best fit
+  theme_light() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+
+# 
+# fig2a_ex_religious <- nichols %>%
+#   select(con, relig, ritual, claim) %>%
+#   filter(con != "Religious") %>%
+#   drop_na(relig, ritual)
+# 
+# fig2_religious <- nichols %>%
+#   select(con, relig, ritual, claim) %>%
+#   filter(con == "Religious") 
+# 
+# ggplot(fig2a, aes(relig, claim, group = con, color = con)) +
+#   geom_smooth(method = "lm", se = FALSE) +
+#   geom_smooth(method = "lm", se = TRUE, data = fig2_religious) +
+#   coord_cartesian(ylim = c(0,50)) +
+#   #ylim(0,100) +
+#   theme_classic() +
+#   easy_remove_legend_title()
+
+fig2b <- nichols %>%
+  select(con, ritual, claim) %>%
+  drop_na(ritual)
+
+ggplot(fig2b, aes(ritual, claim, group = con, color = con)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  coord_cartesian(ylim = c(0,50)) +
+  #ylim(0,100) +
+  theme_classic() +
+  easy_remove_legend_title()
+
+
+fig2c <- nichols %>%
+  select(con, affil, affil_cong, claim) %>%
+  drop_na(affil, affil_cong) %>%
+  group_by(affil_cong, con) %>%
+  summarise(mean_claim = mean(claim),
+            n = n(),
+            sd_claim = sd(claim), 
+            se = sd_claim/(sqrt(n)))
+
+fig2c$affil_cong <- as.factor(fig2c$affil_cong)
+
+ggplot(fig2c, aes(affil_cong, mean_claim, group=con, color=con)) +
+  geom_line(size=1, position=position_dodge(width=0.2)) +
+  geom_errorbar(aes(ymin=mean_claim-se, ymax=mean_claim+se), width = .3, position=position_dodge(width=0.2)) +
+  coord_cartesian(ylim = c(0,50)) +
+  theme_classic() +
+  easy_remove_legend_title()
+
+```
+
+# victor's code
+```{r}
+
+data1 <- nichols
+
+# filtering out NA values for each plot 
+
+dataA <- data1 %>% 
+  filter(!is.na(religiosity))
+
+dataB <- data1 %>% 
+  filter(!is.na(ritual))
+
+dataC <- data1 %>% 
+  filter(!is.na(affil))
+
+# plotting the figure
+
+figA <- ggplot(dataA, aes(religiosity, claimpercent, color = cond)) +
+  geom_smooth(method = "lm", se = FALSE) + #method = "lm" creates a straight line of best fit
+  theme_light() + #Gives white background to plot
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + #Removes gridlines from plot
+  coord_cartesian(ylim = c(0, 50)) + #Sets y limit to 50
+  labs(x = "Religiosity", y = "Percentage claimed", title = "Condition*Religiosity") + #axis labels and title
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none")  #centres title text and removes legend
+  
+
+
+figB <- ggplot(dataB, aes(ritual, claimpercent, color = cond)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_light() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  coord_cartesian(ylim = c(0, 50)) +
+  labs(x = "Ritual frequency", y = "Percentage claimed", title = "Condition*Ritual frequency") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+
+figC <- ggplot(dataC, aes(affil, claimpercent, color = cond)) +
+  stat_smooth(method = "lm", se = FALSE) +
+  theme_light() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  coord_cartesian(ylim = c(0, 50), xlim = c(0, 1)) +
+  scale_x_discrete(limits = c(0, 1)) +
+  labs(x = "Religious affiliation", y = "Percentage claimed", title = "Condition*Religious affiliation") +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+library(gmodels)
+
+dataC %>%
+  group_by(con, affil) %>%
+  summarise(mean_claim = mean(claim),
+            sd_claim = sd(claim), 
+            n_claim = n())
+
+fig2c_CI <- dataC %>%
+  group_by(con, affil) %>%
+  summarise(mean = ci(claim)[1],
+            lowCI = ci(claim)[2],
+            hiCI = ci(claim)[3],
+            sd = ci(claim)[4])
+            
+ggplot(fig2c_CI, aes(affil, mean, group=con, color=con)) +
+  geom_line(position=position_dodge(width=0.2)) +
+  geom_errorbar(aes(ymin=lowCI, ymax=hiCI), width=.2,
+                position=position_dodge(width=0.2))
+  
+
+
+fig2c <- nichols %>%
+  select(con, affil, affil_cong, claim) %>%
+  drop_na(affil, affil_cong) %>%
+  group_by(affil_cong, con) %>%
+  summarise(mean_claim = mean(claim),
+            n = n(),
+            sd_claim = sd(claim), 
+            se = sd_claim/(sqrt(n)))
+
+fig2c$affil_cong <- as.factor(fig2c$affil_cong)
+
+ggplot(fig2c, aes(affil_cong, mean_claim, group=con, color=con)) +
+  geom_line(size=1, position=position_dodge(width=0.2)) +
+  geom_errorbar(aes(ymin=mean_claim-se, ymax=mean_claim+se), width = .3, position=position_dodge(width=0.2)) +
+  coord_cartesian(ylim = c(0,50)) +
+  theme_classic() +
+  easy_remove_legend_title()
+
+
+grid.arrange(figA, figB, figC, ncol = 3)
+```
+
+# victor's code figure 1
+```{r}
+
+nichols_raw <- read_csv(here("nichols", "Nichols_et_al_dataset_V2.0.csv"))
+
+length(unique(nichols_raw$id))
+
+# author's have this code: 
+# Re-order conditions to: religous, secular, noise, and control
+# dat$con[dat$con==4] <- 0 # make religious prime the reference category
+# dat$con[dat$con==1] <- 4
+# dat$con[dat$con==3] <- 1
+# dat$con[dat$con==4] <- 3 # another 4 here because they've recoded so now 0, 1, 2, 3 and no 4s
+
+nichols <- nichols_raw %>%
+  clean_names() %>%
+  filter(include == 0) %>%
+  mutate(relig = abs(relig-5), # reverse coding
+         ritual = abs(ritual - 7), 
+         claim = claim*100)
+
+nichols$con[nichols$con==4] <- 0 # make religious prime the reference category
+nichols$con[nichols$con==1] <- 4
+nichols$con[nichols$con==3] <- 1
+nichols$con[nichols$con==4] <- 3
+
+
+data1 <- nichols_raw %>% 
+  select(site, claim, con, id) 
+
+
+data1 <- data1 %>% 
+  mutate(numberOf = (con == 1) * 100 + (con == 2 | con == 3) * 103 + (con == 4) * 102) %>% 
+  mutate(claimpercent2 = claim / numberOf)
+
+fig1_condition_rp <- ggplot(data1, aes(x = con)) +
+  geom_col(
+    aes(x = as.numeric(con)+.5, y = claimpercent2),
+    width = .3
+  ) +
+  ggdist::stat_halfeye(
+    position = position_nudge(x=-.2, y=0),
+    aes(y = claim),
+    adjust = .5,
+    width = .5,
+    .width = 0,
+    point_colour = NA
+  ) +
+  coord_flip()
+
+plot(fig1_condition_rp)
+
+
+ggplot(data1, aes(con, claim, fill=con)) +
+  coord_flip() +
+  geom_flat_violin(position = position_nudge(x=.1, y=0), adjust=2)
+```
+

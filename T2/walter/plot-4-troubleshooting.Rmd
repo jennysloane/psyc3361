@@ -1,0 +1,100 @@
+---
+title: "plot 4"
+author: "Sakiko Okayama"
+date: "07/07/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+# Set up 
+
+## load packages 
+```{r}
+library(ggplot2)
+library(lmerTest)
+library(psych)
+library(gridExtra)
+library(ggpubr)
+library(tidyr)
+library(tidyverse)
+library(ggeasy)
+library(here)
+```
+
+## reading in data 
+Including set up lines up to line 71 from the all ages script 
+```{r}
+data <- read_csv(here("walter", "walter.csv"))
+```
+
+## create country list
+```{r}
+countrylist<-unique(data$country)
+```
+
+## running lines 1174-1188 from the authors' script (gender equality analyses)
+```{r}
+#### Gender Equality #####
+
+#Find the value of each gender equality variable for each country
+gem1995av<-tapply(data$gem1995,data$country,mean)
+gdi1995av<-tapply(data$gdi1995,data$country,mean)
+giiav<-tapply(data$gii,data$country,mean)
+gdi2015av<-tapply(data$gdi2015,data$country,mean)
+gggiav<-tapply(data$gggi,data$country,mean)
+ge_compav<-tapply(data$gepcascores,data$country,mean)
+
+#new dataframe with national level gender equality variables separated by sex
+ge_plotdata<-data.frame("country"=rep(countrylist,2),"sex"=rep(c("Female","Male"),each=45),"gem1995"=rep(gem1995av,2),"gdi1995"=rep(gdi1995av,2),"gii"=rep(giiav,2),"gdi2015"=rep(gdi2015av,2),"gggi"=rep(gggiav,2),"ge_comp"=rep(ge_compav,2))
+
+#make dataframe for age difference
+age_ge_plotdata<-data.frame(ge_plotdata,"agedif"=c(tapply(data$agediff[data$sex==0],data$country[data$sex==0],function(x) mean(x,na.rm=T)),tapply(data$agediff[data$sex==1],data$country[data$sex==1],function(x) mean(x,na.rm=T))))
+```
+
+# Plots 
+
+## authors' code 
+Here I am creating the plot using the authors' code. The y axis limits are not right. 
+```{r}
+agege<-qplot(ge_comp,agedif,color=sex,data=age_ge_plotdata,xlab="Gender Equality Composite",ylab="Age Difference (Partner-Self)",size=I(2))+geom_smooth(method="lm",se=TRUE,size=2)+theme_classic(base_size=20)+scale_color_manual(name="Sex",values=c("dodgerblue","limegreen"))
+print(agege)
+```
+
+## my own code 
+
+Here I am creating the plot using my own code, and fixing the y axis limits. 
+
+```{r}
+ggplot(data = age_ge_plotdata, 
+                mapping = aes(
+                 x = ge_comp, 
+                 y = agedif, 
+                 colour = sex
+               )) + 
+  geom_point() + 
+  geom_smooth(
+    method = "lm", 
+    size = 2) + 
+  ylim(-5, 5) + 
+  theme_classic() +
+  labs(
+    x = "Gender-Equality Composite", 
+    y = "Age Difference (Partner-Self)") + 
+  scale_colour_manual(
+    values = c("dodgerblue", "limegreen")) + 
+  easy_remove_legend_title()
+```
+
+## actual plot
+
+In both of the above plots, the dots look different from the plot in the actual paper, which is below. The plot written using my own code is easier to compare with, because the y axis limits are the same. ![](https://i.imgur.com/7U3FpmC.png)
+
+We are having the same issue with the dots being wrong in figure 1, although we haven't created that plot using our own code yet. 

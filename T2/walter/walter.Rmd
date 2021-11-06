@@ -1,0 +1,346 @@
+---
+title: "walter"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(here)
+library(haven)
+library(psych)
+library(ggpubr)
+library(ggeasy)
+library(gt)
+library(gtsummary)
+library(stats) # mahalanobis distance
+```
+
+- ran OSFallages08122019.R through line 62 (`data$gepcascores<-gepca$scores`)
+- saved the dataset now has a few extra variables including gepca and age_diff
+```{r}
+#walter_raw <- read_csv(here("walter", "rep_processed.csv")) %>%
+#  clean_names()
+
+walter_raw <- read_csv(here("walter", "walter_data.csv")) %>%
+ clean_names()
+
+length(unique(walter_raw$pin))
+
+glimpse(walter_raw)
+
+walter_raw %>%
+  select(pin, country, sample) %>%
+  group_by(sample) %>%
+  drop_na(sample) %>%
+  summarise(count=n())
+
+```
+
+- shwetas
+```{r}
+walter_raw$religious <- recode_factor(walter_raw$religious,"1" = "Yes", "2" = "No")
+
+walter_raw$religious <- as.numeric(walter_raw$religious)
+
+SDMP_filter_na <- walter_raw %>%
+  filter(religious !="NA")
+
+Yes <- SDMP_filter_na %>%
+  filter(religious == 1)
+
+No <- SDMP_filter_na %>%
+  filter(religious == 2)
+
+t.test(Yes$religious, No$religious)
+```
+
+
+- Lucy 
+```{r}
+library(knitr)
+library(qwraps2)
+library(kableExtra)
+library(Hmisc)
+
+grp_country_na <- walter_raw %>% 
+  group_by(country) %>% 
+  summarise(gdp_percap = mean(gdp_percap),
+            mean_resources = mean(ideal_resources, na.rm=TRUE))
+
+unique(grp_country_na$mean_resources)
+
+ggplot(data = grp_country_na,
+       mapping = aes(
+         x = gdp_percap,
+         y = mean_resources #,
+         #colour = country
+       )) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  easy_remove_legend()
+```
+
+
+# demographics
+
+```{r}
+demo <- walter_raw %>%
+  select(pin, country, sex, age, relstat, relstat2)
+
+demo %>%
+  count(country)
+
+describe(demo$age)
+
+demo %>%
+  group_by(relstat) %>%
+  count()
+
+# demo %>%
+#   group_by(sex) %>%
+#   summarize(count = n(),
+#             percent = 100 * n()/ nrow(demo))
+```
+
+# Figure 1
+- difference variable by sex differences
+- dots reflect random slope value (b) for each country (confused by this?)
+- + mean men had a higher preference than women 
+- - mean women had a higher preference than men
+- originally assumed male = 0 and female = 1, but I think revers
+- not sure about age choice??
+
+- start by making plot just for health
+```{r}
+fig1 <- walter_raw %>%
+  select(pin, country, sex, ideal_health, ideal_kindness, ideal_intelligence, ideal_physatt, ideal_resources, mate_age)
+
+
+fig1$sex <- factor(fig1$sex, levels = c(0,1), labels = c("female", "male"))
+
+health <- fig1 %>%
+  select(pin, country, sex, ideal_health) %>%
+  group_by(sex, country) %>%
+  summarise(mean = mean(ideal_health, na.rm = TRUE)) %>%
+  pivot_wider(names_from = sex, values_from = mean) %>%
+  rename("male" = 0) %>%
+  mutate(sex_diff = male - female, 
+         cat = "Health")
+
+kindness <- fig1 %>%
+  select(pin, country, sex, ideal_kindness) %>%
+  group_by(sex, country) %>%
+  summarise(mean = mean(ideal_kindness, na.rm = TRUE)) %>%
+  pivot_wider(names_from = sex, values_from = mean) %>%
+  rename("male" = 0) %>%
+  mutate(sex_diff = male - female, 
+         cat = "Kindness")
+
+intelligence <- fig1 %>%
+  select(pin, country, sex, ideal_intelligence) %>%
+  group_by(sex, country) %>%
+  summarise(mean = mean(ideal_intelligence, na.rm = TRUE)) %>%
+  pivot_wider(names_from = sex, values_from = mean) %>%
+  rename("male" = 0) %>%
+  mutate(sex_diff = male - female, 
+         cat = "Intelligence")
+
+phys_attr <- fig1 %>%
+  select(pin, country, sex, ideal_physatt) %>%
+  group_by(sex, country) %>%
+  summarise(mean = mean(ideal_physatt, na.rm = TRUE)) %>%
+  pivot_wider(names_from = sex, values_from = mean) %>%
+  rename("male" = 0) %>%
+  mutate(sex_diff = male - female, 
+         cat = "Physical Attractiveness")
+
+finance <- fig1 %>%
+  select(pin, country, sex, ideal_resources) %>%
+  group_by(sex, country) %>%
+  summarise(mean = mean(ideal_resources, na.rm = TRUE)) %>%
+  pivot_wider(names_from = sex, values_from = mean) %>%
+  rename("male" = 0) %>%
+  mutate(sex_diff = male - female, 
+         cat = "Good Financial Prospects")
+
+age_choice <- fig1 %>%
+  select(pin, country, sex, mate_age) %>%
+  group_by(sex, country) %>%
+  summarise(mean = mean(mate_age, na.rm = TRUE)) %>%
+  pivot_wider(names_from = sex, values_from = mean) %>%
+  rename("male" = 0) %>%
+  mutate(sex_diff = male - female, 
+         cat = "Age Choice")
+
+fig1 <- rbind(health, kindness, intelligence, phys_attr, finance, age_choice)
+
+fig1$cat <- factor(fig1$cat, levels = c("Age Choice", "Good Financial Prospects", "Physical Attractiveness", "Intelligence", "Kindness", "Health"))
+
+ggplot(fig1, aes(sex_diff, cat, color=cat)) +
+  geom_jitter() +
+  xlim(-2,2) +
+  labs(x = "Sex Difference (Males - Females)",
+       y = "Difference Variable") +
+  theme_classic() +
+  geom_vline(xintercept = 0, size=1.5) +
+  easy_remove_legend() +
+  easy_text_size(10) 
+
+
+```
+
+# Figure 2
+- Age difference
+- pin 1448 age 47 and partner 17?? I guess possible but maybe mistake
+- looks almost right but a weird pattern here that wasn't in the paper
+```{r}
+
+fig2 <- walter_raw %>%
+  select(pin, age, mate_age, sex) %>%
+  filter(age > 18) %>%
+  filter(mate_age >= 10) %>% #this seems kind of fucked up, but we need to filter out people who report parter age is 10 or under... (ti found this in the markdown file, rather than the paper itself)
+  mutate(age_diff = mate_age-age) %>%
+  drop_na(age_diff)
+
+ggplot(fig2, aes(age, age_diff, color = sex, alpha = 0.05)) +
+  #geom_jitter(alpha = .2) +
+  geom_point() + 
+  geom_smooth(method = loess, se = TRUE, level = 0.95) +
+  scale_color_manual(values=c("deepskyblue3", "chartreuse3")) +
+  theme_classic() +
+  geom_hline(yintercept = 0)
+```
+
+# Fig 3
+- not clear how to calculate mahalanobis D but can easily just read in the csv 
+```{r}
+maha_d <- read_csv(here("walter", "MahaDandCIs.csv"))
+
+# maha_d %>% 
+#   summarise(
+#     mean = round(mean(D), 2),
+#     min = min(D),
+#     max = max(D)
+#     )
+
+
+fig3 <- maha_d %>%
+  select(country, D, DlowCI, DhighCI)
+
+ggplot(fig3, aes(D, country, color = country)) +
+  geom_point() +
+  theme_classic() +
+  easy_remove_legend() +
+  xlim(0, 2) +
+  geom_errorbarh((aes(xmin = DlowCI, xmax = DhighCI))) 
+
+```
+
+# Figure 4
+- gender equality: GDI, GEM, GGGI, GII, updated GDI
+- each point is for a different country
+- composite variable: updated GDI, GGGI, GII - principal component analysis?? page 415
+```{r}
+
+logdataraw<-walter_raw[,c(1,4,10,17:21)]
+  
+  #eliminate rows with missing data
+  logdata<-na.omit(logdataraw)
+countrylist<-unique(logdata$country)
+
+gem1995av<-tapply(walter_raw$gem1995,walter_raw$country,mean)
+gdi1995av<-tapply(walter_raw$gdi1995,walter_raw$country,mean)
+giiav<-tapply(walter_raw$gii,walter_raw$country,mean)
+gdi2015av<-tapply(walter_raw$gdi2015,walter_raw$country,mean)
+gggiav<-tapply(walter_raw$gggi,walter_raw$country,mean)
+ge_compav<-tapply(walter_raw$gepcascores,walter_raw$country,mean)
+
+#new dataframe with national level gender equality variables separated by sex
+ge_plotdata<-data.frame("country"=rep(countrylist,2),"sex"=rep(c("Female","Male"),each=45),"gem1995"=rep(gem1995av,2),"gdi1995"=rep(gdi1995av,2),"gii"=rep(giiav,2),"gdi2015"=rep(gdi2015av,2),"gggi"=rep(gggiav,2),"ge_comp"=rep(ge_compav,2)) %>%
+  as_tibble()
+
+#make dataframe for age difference
+age_ge_plotdata<-data.frame(ge_plotdata,"agedif"=c(tapply(walter_raw$agediff[walter_raw$sex==0],walter_raw$country[walter_raw$sex==0],function(x) mean(x,na.rm=T)),tapply(walter_raw$agediff[walter_raw$sex==1],walter_raw$country[walter_raw$sex==1],function(x) mean(x,na.rm=T)))) %>%
+  as_tibble()
+
+ggplot(age_ge_plotdata, aes(ge_comp, agedif, color=sex)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  ylim(-5,5) 
+
+ggplot(age_ge_plotdata, aes(ge_comp, agedif, color=sex)) +
+  geom_text(label=age_ge_plotdata$country) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  ylim(-5,5) 
+
+
+
+```
+
+# Sakiko question
+```{r}
+sdmp <- read_csv(here("walter", "rep_processed.csv")) 
+
+## convert some variables that aren't next to each other
+library(palmerpenguins)
+penguins %>%
+  mutate(across(species:island, as.character)) # we can splice
+
+penguins %>%
+  mutate(across(c(1,2), as.character)) # or also works to specify the number of the columns like this 
+
+sdmp %>%
+  mutate(across(c(3,4,6), as.factor)) # example using your sdmp variable to change the 3rd, 4th, and 6th columns to a factor
+  
+  
+
+
+
+sdmp <- sdmp %>% 
+  mutate(sex = case_when(sex == 0 ~ "female", 
+                         sex == 1 ~ "male"))
+
+sex_diffs <- sdmp %>% 
+  group_by(sex) %>%
+  summarise(across(contains("ideal"), list(mean = mean, sd = sd), na.rm = TRUE))
+
+sex_diffs
+library(gt)
+
+sex_diffs %>% 
+  gt() %>% 
+  fmt_number(
+    columns = contains("ideal"), 
+    decimals = 2) %>%
+  cols_merge(
+    columns = contains("intelligence"),
+    pattern = "{1} ({2})" 
+) %>%
+  cols_merge(
+    columns = contains("kindness"), 
+    pattern = "{1} ({2})" 
+) %>%
+  cols_merge(
+    columns = contains("health"), 
+    pattern = "{1} ({2})" 
+) %>%
+  cols_merge(
+    columns = contains("physatt"), 
+    pattern = "{1} ({2})" 
+) %>% 
+  cols_merge(
+    columns = contains("resources"), 
+    pattern = "{1} ({2})" 
+) 
+
+
+```
+

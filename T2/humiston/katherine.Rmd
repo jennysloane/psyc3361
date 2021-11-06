@@ -1,0 +1,98 @@
+---
+title: "figure 3 final"
+author: "Katherine Wong"
+date: "15/07/2021"
+output: html_document
+---
+# Aim: produce a line graph with error bars and two lines
+
+This is what we want to reproduce:
+
+![](graph 1.png)
+
+```{r}
+#load packages
+library(readspss) #package to read the original datafile from OFS
+library(tidyverse)
+library(plotrix)
+library(haven)
+library(here)
+#read data
+data <- read_sav(here("Humiston", "Humiston & Wamsley 2019 data.sav"))
+#remove excluded 
+cleandata <- data %>%     #remove excluded participants 
+  filter(exclude==0)
+```
+
+
+First, we need to work out how to get the SEs for the error bars and means for us to plot. We calculate the averages by using summarise, then for SE, we are using the same method with the `plotrix` package.
+
+```{r}
+#selecting variables that show biases
+choosing_bias <- cleandata %>%
+  select(baseIATcued, baseIATuncued, preIATcued, preIATuncued, postIATcued, postIATuncued, weekIATcued, weekIATuncued)
+#calculate averages
+bias_av <- choosing_bias %>%
+  summarise(cued_baseline_av = mean(baseIATcued),
+            cued_pre_av = mean(preIATcued),
+            cued_post_av = mean(postIATcued),
+            cued_week_av = mean(weekIATcued),
+            uncued_baseline_av = mean(baseIATuncued),
+            uncued_pre_av = mean(preIATuncued),
+            uncued_post_av = mean(postIATuncued),
+            uncued_week_av = mean(weekIATuncued))
+  
+print(bias_av)
+
+SE_bias <- std.error(choosing_bias)
+print(SE_bias)
+                
+  
+# ## jenny 
+# typeof(SE_bias) 
+# test <- SE_bias %>%
+#   as.data.frame()
+# 
+# SE_bias %>%
+#   as_tibble()
+# 
+# bias_av <- choosing_bias %>%
+#   summarise_all(list(mean = mean, se = std.error))
+
+
+```
+*Jenny Here...*
+
+Then, we have to put our tibble/dataframe together. We need a column for whether it was cued/uncued mean, another column for when the implicit bias was measured (baseline,prenap, postnap, or one week after)
+
+```{r}
+#construct data 
+data4 <- data.frame(
+  condition = factor(c("cued", "cued", "cued", "cued", "uncued", "uncued", "uncued", "uncued")),
+  time = factor(c("Baseline", "Prenap", "Postnap", "1-week", "Baseline", "Prenap", "Postnap", "1-week")),
+  #levels = c("Baseline", "Prenap", "Postnap", "1-week"),
+  bias_av = c(bias_av$cued_baseline_av, bias_av$cued_pre_av, bias_av$cued_post_av, bias_av$cued_week_av, bias_av$uncued_baseline_av, bias_av$uncued_pre_av, bias_av$uncued_post_av, bias_av$uncued_week_av))
+  se = c(0.06522755, 0.09232149, 0.07984374,0.06954221,0.08030357, 0.07937978, 0.08578681,0.08388760)
+head(data4)
+```
+
+As you can see, this is quite similar to the dataframe for figure 4.
+
+Now, we put it into the ggplot.
+
+```{r}
+ggplot(data = data4, aes(
+  x = factor(time, level = c("Baseline", "Prenap", "Postnap", "1-week")), #googled how to reorder x variables ! 
+  y = bias_av,
+  colour = condition,
+  group = condition)) +
+  geom_line() +
+  geom_errorbar(aes(
+    x= time,
+    ymin=bias_av-se,
+    ymax=bias_av+se),
+width=0.1, colour="grey", alpha= 0.9) +
+  ylim(0.0, 0.7) + #expands y axis 
+  labs(x = "", y = "D600 Bias Score", caption = "Fig 3. Average D600 scores at each IAT timepoint") +
+  theme_bw()
+```

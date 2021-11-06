@@ -1,0 +1,754 @@
+---
+title: "Replicating the Effects of Auditory Religious Cues on Dishonest Behavior"
+author: "Martin Lang & Aaron Nichols; Created with R3.5.3"
+date: "05/11/2020"
+output:
+  html_document:
+    code_folding: show
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+
+<style>
+
+table, th, td {
+  border: none;
+  padding-left: 0em;
+  padding-right: 0em;
+  min-width: 110%;
+  
+}
+
+</style>
+
+## 1. Introduction
+This file accompanies manuscript by Nichols et al. titled "Replicating the Effects of Auditory Religious Cues on Dishonest Behavior", which investigate the effects of religious audiorty cues on dishonest behavior. The present file documents statistical analyses reported in the main text and supplementary materials.
+
+## 2.0 Data set up
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T}
+
+{
+###############################################################
+### General set up ###
+  
+# Load libraries
+libs <- c("yarrr","dplyr","psych", "glmmADMB", "lsmeans", "nlme", "stargazer")
+lapply(libs, require, character.only = TRUE)
+# if those packages are not installed, uncomment the line below:
+# install.packages(libs)
+
+## Note that glmmADMB may not install using this method. Here is is a code to install glmmADMB 
+
+#install.packages("R2admb")
+#install.packages("glmmADMB", 
+#    repos=c("http://glmmadmb.r-forge.r-project.org/repos",
+#            getOption("repos")),
+#    type="source") 
+
+
+####################################################################################  
+## Load data
+dA<-read.csv("nichols/Nichols_et_al_dataset_V2.0.csv", stringsAsFactors=FALSE)
+
+# check missing values
+dA[sapply(dA, function(dA) any(is.na(dA)))]
+
+# Center & factor variables
+dat <- dA %>% 
+  mutate(id = as.factor(id),
+         age.c = age - mean(age, na.rm=T),
+         sex = as.factor(sex),
+         relig = abs(relig-5), # reverse coding
+         ritual = abs(ritual - 7), # reverse coding
+         affil = as.factor(affil_cong), # factor religious affiliation (yes/no)
+         impact = (deep + powerful)/2, # as per Lang et al. 2016
+         tempo = (fast + abs(slow-7))/2,  # as per Lang et al. 2016
+         positivity = (interesting + pleasant + exciting + relaxing + happy)/5,  # as per Lang et al. 2016
+         negativity = (distressing + irritating + boring + sad)/4, # as per Lang et al. 2016
+         difficult = abs(difficult_task-6),
+         CTdiff = CT - CT_cheat,
+         claim.b = (claim*459 + 0.5)/460,
+         claim = claim*100
+         ) %>%
+  as_tibble()
+
+dat %>%
+  select(id, con)
+
+# Re-order conditions to: religous, secular, noise, and control
+dat$con[dat$con==4] <- 0 # make religious prime the reference category
+dat$con[dat$con==1] <- 4
+dat$con[dat$con==3] <- 1
+dat$con[dat$con==4] <- 3
+
+# treatment variable
+dat$con<-factor(dat$con,levels= c(0,1,2,3),
+                  labels = c("Religious", "Secular", "Noise","Control"))
+
+
+# site variable - USA is the reference category
+dat$sit <- dat$site
+dat$site<-factor(dat$site,levels= c(1,2,3),
+                 labels = c("USA", "CZ","JP"))
+
+
+## Exclude PPTs ###########################################################################
+# Exclude participants who guessed the hypotheses and played the game before
+dat.full <- dat
+dat <- dat[dat$include!=1,]
+
+# Create site subsamples
+USA <- dat[dat$site=="USA",]
+CZ <- dat[dat$site=="CZ",]
+JP <- dat[dat$site=="JP",]
+sites <- c("USA", "CZ", "JP")
+}
+```
+
+### 2.1. Histograms
+
+Histogram of percentage of money claimed dishonestly
+
+
+```{r results='asis', message=FALSE, warning=FALSE, echo=FALSE, fig.height=5, fig.width=6}
+
+par(mfrow=c(1,1))
+hist(dat$claim, breaks = seq(0,100,5), freq = F,xlab = 'Claim', ylab = 'Probability',
+     main = 'Histogram with Normal PDF',col="grey78", border="deepskyblue1", lty=1,
+     ylim=c(0,0.05),xlim=c(0,100))
+```
+
+Histograms of claim per site
+
+
+```{r results='asis', message=FALSE, warning=FALSE, echo=FALSE, fig.height=6, fig.width=10}
+
+par(mfrow=c(1,3))
+  for (i in 1:3){
+    sit = eval(parse(text = sites[i]))
+    hist(sit$claim, breaks = seq(0,100,5), freq = F,
+         main = parse(text = sites[i]), col="grey78", border="deepskyblue1",
+         lty=1, ylim=c(0,0.1))}
+
+```
+
+
+### 2.2. Distributions of main variables
+
+Pirate plots of various variables by site these plots combine scatter plots (dots), density function (beans), and mean with 95% confidence interval (bar with a box). We recommend to zoom in the result to see the details.
+These four plots show between-site differences in the percentage of money claimed, age, religiousness, and the frequency of ritual behavior.
+
+```{r results='asis', message=FALSE, warning=FALSE, echo=FALSE, fig.height=9, fig.width=9}
+
+{par(mfrow=c(2,2))
+{pirateplot(formula = claim ~ site,
+           data = dat,
+           theme = 0,
+           main = "",
+           pal = "basel", # southpark color palette
+           bean.b.o = 1, # Bean fill
+           bean.f.o = .005, # Bean fill
+           point.o = .7, # Points
+           inf.f.o = .7, # Inference fill
+           inf.b.o = .96, # Inference border
+           avg.line.o = 1, # Aver line
+           bar.f.o = .2, # Bar
+           inf.f.col = "white", # Inf fill col
+           inf.b.col = "black", # Inf border col
+           avg.line.col = "black", # avg line col
+           point.pch = 21,
+           point.bg = "white",
+           point.cex = 1,
+           point.lwd = 2,
+           bean.lwd = 2)}
+
+  
+{pirateplot(formula = age ~ site,
+            data = dat,
+            theme = 0,
+            main = "",
+            pal = "basel", # southpark color palette
+            bean.b.o = 1, # Bean fill
+            bean.f.o = .005, # Bean fill
+            point.o = .7, # Points
+            inf.f.o = .7, # Inference fill
+            inf.b.o = .96, # Inference border
+            avg.line.o = 1, # Aver line
+            bar.f.o = .2, # Bar
+            inf.f.col = "white", # Inf fill col
+            inf.b.col = "black", # Inf border col
+            avg.line.col = "black", # avg line col
+            point.pch = 21,
+            point.bg = "white",
+            point.cex = 1,
+            point.lwd = 2,
+            bean.lwd = 2)}
+
+{pirateplot(formula = relig ~ site,
+            data = dat,
+            theme = 0,
+            main = "",
+            pal = "basel", # southpark color palette
+            bean.b.o = 1, # Bean fill
+            bean.f.o = .005, # Bean fill
+            point.o = .7, # Points
+            inf.f.o = .7, # Inference fill
+            inf.b.o = .96, # Inference border
+            avg.line.o = 1, # Aver line
+            bar.f.o = .2, # Bar
+            inf.f.col = "white", # Inf fill col
+            inf.b.col = "black", # Inf border col
+            avg.line.col = "black", # avg line col
+            point.pch = 21,
+            point.bg = "white",
+            point.cex = 1,
+            point.lwd = 2,
+            bean.lwd = 2)}
+
+{pirateplot(formula = ritual ~ site,
+            data = dat,
+            theme = 0,
+            main = "",
+            pal = "basel", # southpark color palette
+            bean.b.o = 1, # Bean fill
+            bean.f.o = .005, # Bean fill
+            point.o = .7, # Points
+            inf.f.o = .7, # Inference fill
+            inf.b.o = .96, # Inference border
+            avg.line.o = 1, # Aver line
+            bar.f.o = .2, # Bar
+            inf.f.col = "white", # Inf fill col
+            inf.b.col = "black", # Inf border col
+            avg.line.col = "black", # avg line col
+            point.pch = 21,
+            point.bg = "white",
+            point.cex = 1,
+            point.lwd = 2,
+            bean.lwd = 2)}}
+```
+
+Pirate plots of the same variables by condition
+
+
+```{r results='asis', message=FALSE, warning=FALSE, echo=FALSE, fig.height=9, fig.width=9}
+
+{par(mfrow=c(2,2))
+  {pirateplot(formula = claim ~ con,
+              data = dat,
+              theme = 0,
+              main = "",
+              pal = "basel", # southpark color palette
+              bean.b.o = 1, # Bean fill
+              bean.f.o = .005, # Bean fill
+              point.o = .7, # Points
+              inf.f.o = .7, # Inference fill
+              inf.b.o = .96, # Inference border
+              avg.line.o = 1, # Aver line
+              bar.f.o = .2, # Bar
+              inf.f.col = "white", # Inf fill col
+              inf.b.col = "black", # Inf border col
+              avg.line.col = "black", # avg line col
+              point.pch = 21,
+              point.bg = "white",
+              point.cex = 1,
+              point.lwd = 2,
+              bean.lwd = 2)}
+  
+  {pirateplot(formula = age ~ con,
+              data = dat,
+              theme = 0,
+              main = "",
+              pal = "basel", # southpark color palette
+              bean.b.o = 1, # Bean fill
+              bean.f.o = .005, # Bean fill
+              point.o = .7, # Points
+              inf.f.o = .7, # Inference fill
+              inf.b.o = .96, # Inference border
+              avg.line.o = 1, # Aver line
+              bar.f.o = .2, # Bar
+              inf.f.col = "white", # Inf fill col
+              inf.b.col = "black", # Inf border col
+              avg.line.col = "black", # avg line col
+              point.pch = 21,
+              point.bg = "white",
+              point.cex = 1,
+              point.lwd = 2,
+              bean.lwd = 2)}
+  
+  {pirateplot(formula = relig ~ con,
+              data = dat,
+              theme = 0,
+              main = "",
+              pal = "basel", # southpark color palette
+              bean.b.o = 1, # Bean fill
+              bean.f.o = .005, # Bean fill
+              point.o = .7, # Points
+              inf.f.o = .7, # Inference fill
+              inf.b.o = .96, # Inference border
+              avg.line.o = 1, # Aver line
+              bar.f.o = .2, # Bar
+              inf.f.col = "white", # Inf fill col
+              inf.b.col = "black", # Inf border col
+              avg.line.col = "black", # avg line col
+              point.pch = 21,
+              point.bg = "white",
+              point.cex = 1,
+              point.lwd = 2,
+              bean.lwd = 2)}
+  
+  {pirateplot(formula = ritual ~ con,
+              data = dat,
+              theme = 0,
+              main = "",
+              pal = "basel", # southpark color palette
+              bean.b.o = 1, # Bean fill
+              bean.f.o = .005, # Bean fill
+              point.o = .7, # Points
+              inf.f.o = .7, # Inference fill
+              inf.b.o = .96, # Inference border
+              avg.line.o = 1, # Aver line
+              bar.f.o = .2, # Bar
+              inf.f.col = "white", # Inf fill col
+              inf.b.col = "black", # Inf border col
+              avg.line.col = "black", # avg line col
+              point.pch = 21,
+              point.bg = "white",
+              point.cex = 1,
+              point.lwd = 2,
+              bean.lwd = 2)}}
+
+
+```
+
+
+Assess task difficulty across sites. First two plots show data for completion times during cheating trials and difficulty for full data set. The second row limits data span only to participants who cheated in less than 20% of the cases. One Czech outlier removed from the completion times.
+
+```{r results='asis', message=FALSE, warning=FALSE, echo=FALSE, fig.height=9, fig.width=9}
+
+{par(mfrow=c(3,2))
+  {pirateplot(formula = CT ~ site,
+           data = dat[dat$CT_cheat < 14,],
+           theme = 0,
+           main = "",
+           pal = "basel", # southpark color palette
+           bean.b.o = 1, # Bean fill
+           bean.f.o = .005, # Bean fill
+           point.o = .7, # Points
+           inf.f.o = .7, # Inference fill
+           inf.b.o = .96, # Inference border
+           avg.line.o = 1, # Aver line
+           bar.f.o = .2, # Bar
+           inf.f.col = "white", # Inf fill col
+           inf.b.col = "black", # Inf border col
+           avg.line.col = "black", # avg line col
+           point.pch = 21,
+           point.bg = "white",
+           point.cex = 1,
+           point.lwd = 2,
+           bean.lwd = 2)}
+
+  {pirateplot(formula = difficult ~ site,
+           data = dat[dat$CT_cheat < 14,],
+           theme = 0,
+           main = "",
+           pal = "basel", # southpark color palette
+           bean.b.o = 1, # Bean fill
+           bean.f.o = .005, # Bean fill
+           point.o = .7, # Points
+           inf.f.o = .7, # Inference fill
+           inf.b.o = .96, # Inference border
+           avg.line.o = 1, # Aver line
+           bar.f.o = .2, # Bar
+           inf.f.col = "white", # Inf fill col
+           inf.b.col = "black", # Inf border col
+           avg.line.col = "black", # avg line col
+           point.pch = 21,
+           point.bg = "white",
+           point.cex = 1,
+           point.lwd = 2,
+           bean.lwd = 2)}
+  
+  {pirateplot(formula = CT ~ site,
+           data = dat[dat$claim < 20 & dat$CT_cheat < 14,],
+           theme = 0,
+           main = "",
+           pal = "basel", # southpark color palette
+           bean.b.o = 1, # Bean fill
+           bean.f.o = .005, # Bean fill
+           point.o = .7, # Points
+           inf.f.o = .7, # Inference fill
+           inf.b.o = .96, # Inference border
+           avg.line.o = 1, # Aver line
+           bar.f.o = .2, # Bar
+           inf.f.col = "white", # Inf fill col
+           inf.b.col = "black", # Inf border col
+           avg.line.col = "black", # avg line col
+           point.pch = 21,
+           point.bg = "white",
+           point.cex = 1,
+           point.lwd = 2,
+           bean.lwd = 2)}
+
+  {pirateplot(formula = difficult ~ site,
+           data = dat[dat$claim < 20 & dat$CT_cheat < 14,],
+           theme = 0,
+           main = "",
+           pal = "basel", # southpark color palette
+           bean.b.o = 1, # Bean fill
+           bean.f.o = .005, # Bean fill
+           point.o = .7, # Points
+           inf.f.o = .7, # Inference fill
+           inf.b.o = .96, # Inference border
+           avg.line.o = 1, # Aver line
+           bar.f.o = .2, # Bar
+           inf.f.col = "white", # Inf fill col
+           inf.b.col = "black", # Inf border col
+           avg.line.col = "black", # avg line col
+           point.pch = 21,
+           point.bg = "white",
+           point.cex = 1,
+           point.lwd = 2,
+           bean.lwd = 2)}}
+  
+
+
+  
+```
+
+### 2.3. Means and SD
+
+```{r results='show', message=FALSE, warning=FALSE, echo=T, cache = F}
+## Report means and SD ###########################################################################
+# THis approach is fof the sacred variable. You can just replce the word "sacred" 
+# with e.g. "claim" to get all the same parameters for the claim variable
+{
+# Religious condition
+mean0 <- mean(dat$claim[dat$con=="Religious"], na.rm = T) # mean
+sd0 <- sd(dat$claim[dat$con=="Religious"], na.rm = T) # standard deviation
+n0 <- length(dat$con[dat$con=="Religious" & !is.na(dat$con)]) # number of observations
+se0 <- sd0/sqrt(n0) # standard error
+lCI0 <- mean0 - (1.96*se0) # lower 95% CI
+uCI0 <- mean0 + (1.96*se0) # upper 95% Ci
+
+# Secular condition
+mean1 <- mean(dat$claim[dat$con=="Secular"], na.rm = T) # mean
+sd1 <- sd(dat$claim[dat$con=="Secular"], na.rm = T) # standard deviation
+n1 <- length(dat$con[dat$con=="Secular" & !is.na(dat$con)]) # number of observations
+se1 <- sd1/sqrt(n1) # standard error
+lCI1 <- mean1 - (1.96*se1) # lower 95% CI
+uCI1 <- mean1 + (1.96*se1) # upper 95% Ci
+
+# Noise condition
+mean2 <- mean(dat$claim[dat$con=="Noise"], na.rm = T) # mean
+sd2 <- sd(dat$claim[dat$con=="Noise"], na.rm = T) # standard deviation
+n2 <- length(dat$con[dat$con=="Noise" & !is.na(dat$con)]) # number of observations
+se2 <- sd2/sqrt(n2) # standard error
+lCI2 <- mean2 - (1.96*se2) # lower 95% CI
+uCI2 <- mean2 + (1.96*se2) # upper 95% Ci
+
+# Control condition
+mean3 <- mean(dat$claim[dat$con=="Control"], na.rm = T) # mean
+sd3 <- sd(dat$claim[dat$con=="Control"], na.rm = T) # standard deviation
+n3 <- length(dat$con[dat$con=="Control" & !is.na(dat$con)]) # number of observations
+se3 <- sd3/sqrt(n3) # standard error
+lCI3 <- mean3 - (1.96*se3) # lower 95% CI
+uCI3 <- mean3 + (1.96*se3) # upper 95% Ci
+
+# compute Cohen's d
+
+# Relig vs. Secular
+d1 <- (mean0-mean1)/sqrt((sd0^2+sd1^2)/2)
+# Relig vs. Noise
+d2 <- (mean0-mean2)/sqrt((sd0^2+sd2^2)/2)
+# Relig vs. Control
+d3 <- (mean0-mean3)/sqrt((sd0^2+sd3^2)/2)
+}
+
+# Display the results for your table 1
+# number of participants; mean value; standard deviation; 95% CI; and Cohen's d
+rel <- c(n0,mean0,sd0,lCI0,uCI0)
+sec <- c(n1,mean1,sd1,lCI1,uCI1,d1)
+noi <- c(n2,mean2,sd2,lCI2,uCI2,d2)
+con <- c(n3,mean3,sd3,lCI3,uCI3,d3)
+
+print(rez <- as.data.frame(cbind(rel,sec,noi,con)), digits = 2)
+
+
+print(dat %>% group_by(site) %>% summarise(M = mean(age, na.rm = T), SD = sd(age, na.rm = T), NROW(id)))
+
+print(dat %>% group_by(site) %>% summarise(M = mean(claim, na.rm = T), SD = sd(claim, na.rm = T), NROW(id)))
+
+```
+
+## 3.0 Main models
+
+
+We approached the modeling of our dependent variable quite simply: while we could have used linear mixed-models (LMM) with site as the nesting factor, or generalized linear models (GLMs) accounting for the bounded nature of our data, we opted for simplicity and intepretability. So, we proceed with ordinary least squares models with the religious condition as a  reference category (all, other conditions are compared to it) and the USA as the reference site (this choice was arbitrary, we are not really interested in the differences across sites). However, we also report Beta regression, which are appropriate for percentage data. Nevertheless, the results are qualitatively similar.
+
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+# Maniuplation check
+summary(lm0 <- lm(sacred ~ con, data = dat))
+
+summary(lm0.1 <- lm(religious ~ con, data = dat))
+```
+```{r echo=FALSE, results='asis'}
+stargazer(lm0,lm0.1, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = c("x p<.1; * p<.05; ** p<.01; *** p<.001"), notes.append = F, ci = T, type = "html", digits = 2)
+
+```
+
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+
+# First, simple condition effect holding site intercepts constant (no effect in the original study)
+summary(lm1 <- lm(claim ~ con + sex + age.c + site, data = dat))
+
+# Add interaction with religiosity (significant in the original study)
+summary(lm2 <- lm(claim ~ con*relig + sex + age.c + site, data=dat))
+
+# Add interaction with ritual frequency (trending in the original study)
+summary(lm3 <- lm(claim ~ con*ritual + sex + age.c + site, data=dat))
+
+# Add interaction with affiliation to the religion associated with our religious prime (not explored in the original study)
+summary(lm4 <- lm(claim ~ con*affil + sex + age.c + site, data = dat))
+
+```
+
+```{r echo=FALSE, results='asis'}
+stargazer(lm1,lm2,lm3,lm4, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = c("x p<.1; * p<.05; ** p<.01; *** p<.001"), notes.append = F, ci = T, type = "html", digits = 2)
+
+```
+
+
+
+Model diagnostics
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+par(mfrow=c(3,1), mar=c(2,2,2,2))
+plot(predict(lm4), lm4$residuals,  main = "Fitted vs Residuals")
+qqnorm(lm4$residuals, main = "QQ plot")
+hist(lm4$residuals, main = "Histogram")
+```
+
+
+
+
+## 4.0 Supplementary Material
+
+
+### 4.1 Musical ratings
+
+```{r results='show', message=FALSE, warning=FALSE, echo=T, cache = F}
+# Maniuplation check
+summary(lm1 <- lm(positivity ~ con, data = dat))
+lsmeans(lm1, pairwise~con)
+
+summary(lm2 <- lm(negativity ~ con, data = dat))
+lsmeans(lm2, pairwise~con)
+
+summary(lm3 <- lm(tempo ~ con, data = dat))
+lsmeans(lm3, pairwise~con)
+
+summary(lm4 <- lm(impact ~ con, data = dat))
+lsmeans(lm4, pairwise~con)
+
+```
+
+
+### 4.2 Site-specific models
+
+In this section, we replicate the site-specific models from Lang et al. (2016) and add site-specific models also for the other moderating variables.
+
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+
+# USA
+summary(lm1 <- lm(claim ~ con*relig + sex + age.c, data=USA))
+
+# CZ
+summary(lm2 <- lm(claim ~ con*relig + sex + age.c, data=CZ))
+
+# JP
+summary(lm3 <- lm(claim ~ con*relig + sex + age.c, data=JP))
+
+```
+
+```{r echo=FALSE, results='asis'}
+stargazer(lm1,lm2,lm3, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = c("x p<.1; * p<.05; ** p<.01; *** p<.001"), notes.append = F, ci = T, type = "html", digits = 2)
+
+```
+
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+
+# USA
+summary(lm1 <- lm(claim ~ con*ritual + sex + age.c, data=USA))
+
+# CZ
+summary(lm2 <- lm(claim ~ con*ritual + sex + age.c, data=CZ))
+
+# JP
+summary(lm3 <- lm(claim ~ con*ritual + sex + age.c, data=JP))
+
+```
+
+```{r echo=FALSE, results='asis'}
+stargazer(lm1,lm2,lm3, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = c("x p<.1; * p<.05; ** p<.01; *** p<.001"), notes.append = F, ci = T, type = "html", digits = 2)
+
+```
+
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+
+# USA
+summary(lm1 <- lm(claim ~ con*affil + sex + age.c, data=USA))
+
+# CZ
+summary(lm2 <- lm(claim ~ con*affil + sex + age.c, data=CZ))
+
+# JP
+summary(lm3 <- lm(claim ~ con*affil + sex + age.c, data=JP))
+
+```
+
+```{r echo=FALSE, results='asis'}
+stargazer(lm1,lm2,lm3, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = c("x p<.1; * p<.05; ** p<.01; *** p<.001"), notes.append = F, ci = T, type = "html", digits = 2)
+
+```
+
+
+### 4.3 Beta regression
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+# transform data to accomodate them for the need of the Beta regression (Smithson & Verkulien, 2006)
+
+# create separata data sets, exluding missing values pairwise
+dat1 <- na.omit(subset(dat, select = c(claim.b, con, relig, sex, age.c, site)))
+dat2 <- na.omit(subset(dat, select = c(claim.b, con, ritual, sex, age.c, site)))
+dat3 <- na.omit(subset(dat, select = c(claim.b, con, affil, sex, age.c, site)))
+
+
+summary(glm1 <- glmmadmb(claim.b ~ con*relig + sex + age.c + site, family = 'beta', data=dat1))
+summary(glm2 <- glmmadmb(claim.b ~ con*ritual + sex + age.c + site, family = 'beta', data=dat2))
+summary(glm3 <- glmmadmb(claim.b ~ con*affil + sex + age.c + site, family = 'beta', data=dat3))
+
+
+
+cf <- summary(glm1)$coefficients[,1]
+se <- sqrt(diag(vcov(glm1)))
+p <- summary(glm1)$coefficients[,4]
+ci <- (cbind(est = (plogis(cf)-0.5), LL = (plogis(cf - 1.96 * se)-0.5),
+             UL = (plogis(cf + 1.96 * se)-0.5),p))
+ci[1,] <- (ci[1,]+0.5)
+ci1 <- ci
+
+cf <- summary(glm2)$coefficients[,1]
+se <- sqrt(diag(vcov(glm2)))
+p <- summary(glm2)$coefficients[,4]
+ci <- (cbind(est = (plogis(cf)-0.5), LL = (plogis(cf - 1.96 * se)-0.5),
+             UL = (plogis(cf + 1.96 * se)-0.5),p))
+ci[1,] <- (ci[1,]+0.5)
+ci2 <- ci
+
+cf <- summary(glm3)$coefficients[,1]
+se <- sqrt(diag(vcov(glm3)))
+p <- summary(glm3)$coefficients[,4]
+ci <- (cbind(est = (plogis(cf)-0.5), LL = (plogis(cf - 1.96 * se)-0.5),
+             UL = (plogis(cf + 1.96 * se)-0.5),p))
+ci[1,] <- (ci[1,]+0.5)
+ci3 <- ci
+
+```
+```{r echo=FALSE, results='asis'}
+stargazer(ci1,ci2,ci3, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = "", notes.append = F, ci = T, type = "html", digits = 2)
+
+```
+
+
+
+### 4.4 Linear mixed models
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+
+summary(lm1 <- lme(claim ~ con*relig + sex + age.c, random = ~1|site, data = dat, na.action = na.omit))
+
+summary(lm2 <- lme(claim ~ con*ritual + sex + age.c, random = ~1|site, data = dat, na.action = na.omit))
+
+summary(lm3 <- lme(claim ~ con*affil + sex + age.c, random = ~1|site, data = dat, na.action = na.omit))
+
+```
+```{r echo=FALSE, results='asis'}
+stargazer(lm1,lm2,lm3, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = c("x p<.1; * p<.05; ** p<.01; *** p<.001"), notes.append = F, ci = T, type = "html", digits = 2)
+
+```
+
+
+### 4.5 Adding control variables
+
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+
+summary(lmx <- lm(difficult~site + age.c + sex, data = dat))
+lsmeans(lmx, pairwise~site)
+
+
+# Add interaction with religiosity (significant in the original study)
+summary(lm1 <- lm(claim ~ con*relig + sex + age.c + difficult + CTdiff + site, data=dat))
+summary(lm2 <- lm(claim ~ con*relig + sex + age.c + impact + tempo + positivity + negativity + difficult + CTdiff + site, data=dat))
+
+# Add interaction with ritual frequency (trending in the original study)
+summary(lm3 <- lm(claim ~ con*ritual + sex + age.c + difficult + CTdiff+ site, data=dat))
+summary(lm4 <- lm(claim ~ con*ritual + sex + age.c + impact + tempo + positivity + negativity + difficult + CTdiff + site, data=dat))
+
+# Add interaction with affiliation to the religion associated with our religious prime (not explored in the original study)
+summary(lm5 <- lm(claim ~ con*affil + sex + age.c + difficult + CTdiff + site, data=dat))
+summary(lm6 <- lm(claim ~ con*affil + sex + age.c + impact + tempo + positivity + negativity + difficult + CTdiff + site, data=dat))
+
+```
+```{r echo=FALSE, results='asis'}
+stargazer(lm1,lm2,lm3,lm4,lm5,lm6, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = c("x p<.1; * p<.05; ** p<.01; *** p<.001"), notes.append = F, ci = T, type = "html", digits = 2)
+
+```
+
+
+### 4.6 Full-data models
+
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=T, cache = F}
+# First, explore the differences in the incorrectly claimed higher-paying sides between the excluded and included particiapants
+
+summary(lm1 <- lm(claim ~ include + sex + age.c + site, data=dat.full))
+
+## look only at 100% incorrect claims
+dat.full$claim.bin <- dat.full$claim
+dat.full$claim.bin[dat.full$claim.bin < 100] <- 0
+dat.full$claim.bin[dat.full$claim.bin == 100] <- 1
+
+summary(lm2 <- glm(claim.bin ~ include + sex + age.c + site, data=dat.full, family = "binomial"))
+exp(lm2$coefficients[2])
+
+
+# run basic models on full sample
+
+summary(lm3 <- lm(claim ~ con + sex + age.c + site, data = dat.full))
+
+summary(lm4 <- lm(claim ~ con*relig + sex + age.c + site, data=dat.full))
+
+summary(lm5 <- lm(claim ~ con*ritual + sex + age.c + site, data=dat.full))
+
+summary(lm6 <- lm(claim ~ con*affil + sex + age.c + site, data=dat.full))
+
+
+
+```
+```{r echo=FALSE, results='asis'}
+stargazer(lm3,lm4,lm5,lm6, title="Estimates with 95% CI",  multicolumn = F, df = F, header=FALSE, omit.stat = c("ll","wald","AIC","BIC","adj.rsq","rsq","f","ser"), dep.var.caption  = "",no.space = F,  p.auto = FALSE, star.char = c("x", "*", "**","***"),  star.cutoffs = c(0.1, 0.05, 0.01, 0.001), notes = c("x p<.1; * p<.05; ** p<.01; *** p<.001"), notes.append = F, ci = T, type = "html", digits = 2)
+
+```

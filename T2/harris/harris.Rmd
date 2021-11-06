@@ -1,0 +1,92 @@
+---
+title: "harris"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(here)
+```
+
+# Thenuka
+```{r}
+data <- read_csv("harris/clean_harris.csv") 
+
+data$education=as.factor(data$education)
+
+thenuka_fig <- data %>%
+  select(rid, education, meanD)
+
+thenuka_aov <- aov(meanD ~ education, data = thenuka_fig)
+summary(thenuka_aov)
+
+ggplot(data, aes(x=education, y=meanD,color=education)) +
+  geom_point(aes(y = meanD), position = position_jitter(width = .15), size = 2.5, alpha = 0.6) +
+   stat_summary(fun.y=mean, geom='point', size=2, color="black") +
+  stat_summary(fun.data = mean_cl_boot,geom='errorbar', fun.args=list(conf.int=.95), 
+               size=1.5, aes(width=.3), color="black")+
+  stat_summary(fun.y=mean, size=1, color="black",geom="line", aes(group = 1)) +
+  labs(x='Education', y='Dogmatism') +
+   scale_x_discrete(labels = c("1","2","3","4","5","6","7","8")) +
+  scale_y_continuous(breaks = c(0,1,2,3,4,5,6,7,8,9),lim=c(1,9)) +
+   theme_minimal() +
+  theme(axis.line= element_line(color="black")) + 
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+ easy_remove_legend() + 
+   easy_all_text_size(size = 16) 
+```
+
+
+- need to look at their script to interpret the variables
+```{r}
+# harris_raw <- read_csv(here("harris", "beliefsuperiority_all.csv"))
+# 
+# harris <- harris_raw %>%
+#   clean_names() %>%
+#   filter(q62 == 1) #remove rows of those who did not agree to the consent form
+#   
+# length(unique(harris$rid))
+
+harris <- read_csv("harris/clean_harris.csv")
+
+n_subj = length(unique(harris$rid))
+```
+
+- this figure and the figure from the author's script does look different to the figure they included in the paper
+```{r}
+fig1 <- harris %>%
+  select(meanD, meanA, meanA_c) %>%
+  na.omit()
+
+# -meanA_c mirrors graph, not sure why this is necessary though?
+ggplot(fig1, aes(-meanA_c, meanD, color=meanA_c)) +
+  geom_point() + 
+  geom_smooth() +
+  theme_classic() +
+  coord_cartesian(ylim= c(1,9)) +
+  scale_y_continuous(breaks = c(0,1,2,3,4,5,6,7,8,9)) + scale_color_gradient2(mid="black", low="blue", high="red") +
+  easy_remove_legend()
+
+```
+
+- this is not right, but don't think you should need Himsc package
+```{r}
+data_attn$PO_c= data_attn$Q12-mean(data_attn$Q12,na.rm=TRUE)
+
+ggplot(harris, aes(x=political_party, y=meanD,color=political_party)) + 
+  geom_point(aes(y = meanD), position = position_jitter(width = .15), size = 2.5, alpha = 0.6) + 
+  stat_summary(fun.y=mean, geom='point', size=2, color="black") +
+  stat_summary(fun.data = mean_cl_boot, geom='errorbar', fun.args=list(conf.int=.95), 
+               size=1.5, aes(width=.3), color="black") +
+  labs(x='Political Orientation', y='Dogmatism') +
+  stat_smooth(method = "lm", formula = y ~ x + I(x^2), size = 2) +
+   theme_minimal() +
+  theme(axis.line= element_line(color="black")) + theme(axis.ticks.y = element_line(color="black")) + easy_remove_legend() + 
+  scale_x_continuous(breaks = c(-3,-2,-1,0,1,2,3),lim=c(-3.1,3.1))+
+  scale_y_continuous(breaks = c(0,1,2,3,4,5,6,7,8,9),lim=c(1,9)) + easy_all_text_size(size = 16) + scale_colour_gradient2(low = "blue", mid = "black", high = "red") 
+```
+

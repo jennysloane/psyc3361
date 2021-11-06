@@ -1,0 +1,163 @@
+---
+title: "plot 1"
+author: "Sakiko Okayama"
+date: "07/07/2021"
+output: html_document
+---
+
+*geom_jitter()* 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+# Set up 
+
+## load packages 
+```{r}
+library(ggplot2)
+library(lmerTest)
+library(psych)
+library(gridExtra)
+library(ggpubr)
+library(tidyr)
+library(tidyverse)
+library(ggeasy)
+library(here)
+```
+
+## reading in data 
+Including set up lines up to line 71 from the all ages script 
+```{r}
+data <- read_csv(here("walter", "walter.csv"))
+```
+
+## create country list
+```{r}
+countrylist<-unique(data$country)
+```
+
+
+## running lines 85-110 from the authors' script (sex differences analyses)
+```{r}
+################ Sex Differences in Preferences ###################
+
+#Good Financial Prospects
+gfpdiff<-lmer(zideal_resources~sex+(1+sex|CIN),data=data)
+gfpslopes<-coef(gfpdiff)$CIN[,2]
+
+#Physical Attractiveness
+padiff<-lmer(zideal_physatt~sex+(1+sex|CIN),data=data)
+paslopes<-coef(padiff)$CIN[,2]
+
+#Health
+hdiff<-lmer(zideal_health~sex+(1+sex|CIN),data=data)
+hslopes<-coef(hdiff)$CIN[,2]
+
+#Intelligence
+intdiff<-lmer(zideal_intelligence~sex+(1+sex|CIN),data=data)
+intslopes<-coef(intdiff)$CIN[,2]
+
+#Kindness
+kinddiff<-lmer(zideal_kindness~sex+(1+sex|CIN),data=data)
+kindslopes<-coef(kinddiff)$CIN[,2]
+
+#Age
+#all ages
+agediff<-lmer(zagediff~sex+(1+sex|CIN),data=data)
+ageslopes<-coef(agediff)$CIN[,2]
+
+```
+
+
+## running lines 1087-1115 from the authors' script (sex differences in preferences individual dataframes)
+Minus the lines to make the mini-plots 
+```{r}
+##### Sex Differences in Preferences #####
+
+#health
+datahealth<-data.frame("country"=unique(data$country),"slopes"=coef(hdiff)$CIN[,2],"n"=tapply(data$zideal_health,data$country,length))
+
+
+#physical attractiveness
+datapa<-data.frame("country"=unique(data$country),"slopes"=coef(padiff)$CIN[,2],"n"=tapply(data$zideal_physatt,data$country,length))
+
+#good financial prospects
+datagfp<-data.frame("country"=unique(data$country),"slopes"=coef(gfpdiff)$CIN[,2],"n"=tapply(data$zideal_resources,data$country,length))
+
+#kindness
+datakind<-data.frame("country"=unique(data$country),"slopes"=coef(kinddiff)$CIN[,2],"n"=tapply(data$zideal_kindness,data$country,length))
+
+#intelligence
+dataint<-data.frame("country"=unique(data$country),"slopes"=coef(intdiff)$CIN[,2],"n"=tapply(data$zideal_intelligence,data$country,length))
+
+#age (all)
+data2<-data[complete.cases(data$zagediff),]
+levels(data2$sex)<-c("Females","Males")
+data2$country<-factor(data2$country)
+dataage<-data.frame("country"=unique(data2$country),"slopes"=coef(agediff)$CIN[,2],"n"=tapply(data2$zagediff,data2$country,length))
+
+```
+
+# Plots
+## author's code
+running lines 1125-1162
+```{r}
+##### Megaplot with All Preferences Together #####
+
+#need to adjust age variable to eliminate mate_age under 10
+### subset data to only include those who reported a mate age ### n = 8920
+data3<-data[complete.cases(data$mate_age),]
+### subset data to include only those with mates older than 10 ### n = 8614
+data3<-data3[data3$mate_age>10,]
+
+#create age difference variable
+data3$agediff<-(data3$mate_age-data3$age)
+#standardize outcome variable
+data3$zagediff<-scale(data3$agediff)
+
+#get slopes
+agediff2<-lmer(zagediff~sex+(1+sex|CIN),data=data3)
+ageslopes2<-coef(agediff2)$CIN[,2]
+
+#create plotting dataframe for age difference w/o mate age under 10
+levels(data3$sex)<-c("Females","Males")
+data3$country<-factor(data3$country)
+dataage2<-data.frame("country"=unique(data3$country),"slopes"=coef(agediff2)$CIN[,2],"n"=tapply(data3$zagediff,data3$country,length))
+
+
+#tag dataframe with preference variable they refer to
+datahealth$variable<-"Health"
+datapa$variable<-"Physical Attractiveness"
+datagfp$variable<-"Good Financial Prospects"
+dataage2$variable<-"Age Choice"
+datakind$variable<-"Kindness"
+dataint$variable<-"Intelligence"
+
+#create dataframe
+superdata<-rbind(datahealth,datapa,datagfp,dataage2,datakind,dataint)
+superdata$variable<-as.factor(superdata$variable)
+superdata$variable<-factor(superdata$variable,levels=c("Age Choice","Good Financial Prospects","Physical Attractiveness","Intelligence","Kindness","Health"))
+
+#plot super slopes
+superslopes<-qplot(slopes,variable,color=variable,data=superdata,xlab="Sex Difference (Males-Females)",ylab="Difference Variable",geom="blank")+
+  theme_classic(base_size=25)+
+  geom_vline(xintercept =0, size=2)+
+  theme(legend.position="none")+
+  geom_jitter(size=I(2.5),height = .30)+
+  scale_x_continuous(breaks=seq(-2,2,.5),limits=c(-2,2))
+```
+
+printing the plot 
+```{r fig.width=10, fig.height=10}
+print(superslopes)
+```
+
+the above plot looks weird in the knitted Rmd, so here is a screenshot after expanding it. ![](https://i.imgur.com/nKfow2M.png)
+
+## actual plot
+
+Again, the dots look different from the plot in the actual paper, which is below.  ![](https://i.imgur.com/7dl1fUq.png)

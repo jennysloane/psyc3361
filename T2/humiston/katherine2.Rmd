@@ -1,0 +1,484 @@
+---
+title: "Week 8 Learning Log"
+author: "Katherine Wong"
+date: "24/07/2021"
+output:
+  html_document:
+    theme: darkly
+    toc: true
+    toc_float: true
+---
+
+The values of the boxplot for the baseline part of this graph (lines 270-280) differ from the values in the first attempt baseline boxplot I made earlier (lines 326-334) why are the values different?
+
+
+
+# **Week 8 coding goals**
+
+With the group project finally complete, my goals this week are to get started on the verification report:
+
+- Learn to replace SE values with the variable name
+- Clean up existing code
+- Start exploratory analysis
+
+# **Challenges and successes**
+
+## 1. Learn to replace SE values with the variable name
+
+This has been surprisingly difficult, even when I asked Jenny for help, she had some trouble figuring this out. Most of the challenges with this were outlined in last week's learning log. 
+
+Luckily, we were able to successfully replace SE values by using the solution code Jenny provided for us.
+
+First, we took all the steps to get the values and variables that were needed for the graph (not including the SD).
+
+```{r}
+#load packages
+#library(readspss) #package to read the original datafile from OFS
+library(tidyverse)
+library(dplyr)
+library(haven)
+library(here)
+library(plotrix)
+library(sjlabelled)
+
+#read data
+data <- read_sav(here("Humiston", "Humiston & Wamsley 2019 data.sav"))
+
+#remove excluded 
+cleandata <- data %>%     #remove excluded participants 
+  filter(exclude==0) %>%
+  remove_all_labels() %>%
+  as_tibble()
+
+#selecting variables that show biases
+choosing_bias <- cleandata %>%
+  select(baseIATcued, baseIATuncued, preIATcued, preIATuncued, postIATcued, postIATuncued, weekIATcued, weekIATuncued)
+
+#calculate averages
+bias_av <- choosing_bias %>%
+  summarise(cued_baseline_av = mean(baseIATcued),
+            cued_pre_av = mean(preIATcued),
+            cued_post_av = mean(postIATcued),
+            cued_week_av = mean(weekIATcued),
+            uncued_baseline_av = mean(baseIATuncued),
+            uncued_pre_av = mean(preIATuncued),
+            uncued_post_av = mean(postIATuncued),
+            uncued_week_av = mean(weekIATuncued))
+  
+print(bias_av)
+```
+
+Then, what we would normally do is get SE with this code:
+```{r eval=FALSE}
+SE_bias <- std.error(choosing_bias) #calculated using the plotrix package, see learning log 6
+print(SE_bias)
+```
+
+But the problem with this code, was that it didn't output a normal tibble, it produced values as a double. So, when we tried to call it with the `dataset$variable` format, it wouldn't work. Jenny suggested we try this code:
+```{r}
+library(plotrix)
+
+bias_av_se <- choosing_bias %>%
+  summarise_all(list(mean = mean, se = std.error))
+
+print(bias_av_se)
+```
+
+And when we put the values into the dataframe. It worked!
+
+```{r}
+data4 <- data.frame(
+  condition = factor(c("cued", "cued", "cued", "cued", "uncued", "uncued", "uncued", "uncued")),
+  time = factor(c("Baseline", "Prenap", "Postnap", "1-week", "Baseline", "Prenap", "Postnap", "1-week")),
+  levels = c("Baseline", "Prenap", "Postnap", "1-week"),
+  bias_av = c(bias_av$cued_baseline_av, bias_av$cued_pre_av, bias_av$cued_post_av, bias_av$cued_week_av, bias_av$uncued_baseline_av, bias_av$uncued_pre_av, bias_av$uncued_post_av, bias_av$uncued_week_av))
+  se = c(bias_av_se$baseIATcued_se, bias_av_se$preIATcued_se,  bias_av_se$postIATcued_se, bias_av_se$weekIATcued_se, bias_av_se$baseIATuncued_se, bias_av_se$preIATuncued_se, bias_av_se$postIATuncued_se,bias_av_se$weekIATuncued_se)
+
+head(data4)
+```
+
+This means we don't have to summarise the list of means in such a long and convoluted way which, as a result, reduces all this code down to just a few lines. This led me to try and understand the difference between `summarise`, which is what we were initially using, and `summarise_all` which is what Jenny used.
+
+As the names of the functions suggest, `summarise` will only summarise the select variables from the dataset. `summarise_all` will summarise all of them. Since we want to summarise all of the ones in the `choosing_bias` dataset, we may as well use this function. 
+
+I've also managed to simplify our code in a similar way with figure 4. 
+
+Overall, this has been a huge success.
+
+## 2. Clean up existing code
+
+My first success in this domain was the fact that Goal 1 allowed me to understand the `summarise_all` function which, in turn, led me to clean up a large part of my code by allowing me to call variables instead of values. As a result, all my code that includes SEs looks significantly cleaner.
+
+My next challenge was to reduce the code for figure 3 down even more. This is what it initially looked like:
+```{r}
+#selecting variables that show biases
+choosing_bias <- cleandata %>%
+  select(baseIATcued, baseIATuncued, preIATcued, preIATuncued, postIATcued, postIATuncued, weekIATcued, weekIATuncued)
+
+#getting the SE and mean for each 
+bias_av_se <- choosing_bias %>%
+  summarise_all(list(mean = mean, se = std.error))
+
+print(bias_av_se)
+```
+
+I thought I could merge the selecting variables and summarising functions into one chunk of code by using the `summarise(across())` function. The logic behind this is that the `across()` does the work that `select()` does.
+
+```{r eval=FALSE}
+bias_av_se1 <- cleandata %>%
+  summarise(across(contains("IAT"), list(mean = mean, se = std.error)))
+```
+
+However, this did not work because there are other columns that we don't want to analyse which have "IAT" in their name. So I tried to specify the `across()` even more by using `ends_with` as well.
+
+*mean and sd for: base_IAT_race, base_IAT_gen, pre_IAT_race, pre_IAT_gen, post_IAT_race, post_IAT_gen, week_IAT_race, week_IAT_gen*
+```{r}
+test <- cleandata %>%
+  select(base_IAT_race, base_IAT_gen, pre_IAT_race, pre_IAT_gen, post_IAT_race, post_IAT_gen, week_IAT_race, week_IAT_gen) %>%
+  summarise(BIBaverage = mean(rbind(base_IAT_race, base_IAT_gen)),
+            BIBsd = sd(rbind(base_IAT_race, base_IAT_gen)),
+            PrenapIBaverage = mean(rbind(pre_IAT_race, pre_IAT_gen)),
+            PrenapIBsd = sd(rbind(pre_IAT_race, pre_IAT_gen))) ## can also add your other variables of interest like post_IAT and week_IAT etc
+```
+
+
+```{r eval=FALSE}
+bias_av_se1 <- cleandata %>%
+  summarise(across(contains("IAT"), ends_with("cued"), list(mean = mean, se = std.error)))
+```
+
+But this didn't work as the error code stated that `ends_with()` must be used within a selecting function. For now, I've decided to leave this challenge for now since this part of the code is already quite compact.
+
+So, I turned my attention to areas that, with my current knowledge, I knew I could clean up. The most obvious example of this was our descriptive statistics. 
+
+The first thing I wanted to simplify was the code we used to calculate our implicit bias levels, since we wrote this code at the very beginning of our journey and it was quite clunky. Initially, it looked like this:
+
+```{r}
+BIB <- cleandata %>% #Calculating baseline implicit bias from "cleandata" data
+  select( #select two variables baseline IAT scores for race and gender 
+    base_IAT_race,
+    base_IAT_gen) %>% 
+  summarise( #using summarise() to calculate means and sds
+    BIBaverage = mean(rbind(base_IAT_race, base_IAT_gen)), #use rbind() function to bind together the race and gender baseline IAT values, and then calculate mean and sds for this binded value 
+    BIBsd = sd(rbind(base_IAT_race, base_IAT_gen))
+            )
+
+print(BIB)
+
+PrenapIB <- cleandata %>% #Calculating prenap implicit bias from "cleandata" data
+  select( #select two variables prenap IAT scores for race and gender 
+    pre_IAT_race,
+    pre_IAT_gen) %>% 
+  summarise( #using summarise() to calculate means and sds
+    PrenapIBaverage = mean(
+      rbind( #use rbind() function to bind together the race and gender prenap IAT values
+        pre_IAT_race, 
+        pre_IAT_gen)
+      ),
+    PrenapIBsd = sd( #now calculate mean and sds for this binded value 
+      rbind(
+        pre_IAT_race, 
+        pre_IAT_gen))
+            )
+
+print(PrenapIB)
+
+PostnapIB <- cleandata %>% #Calculating postnap implicit bias from "cleandata" data
+  select( #select two variables postnap IAT scores for race and gender 
+    post_IAT_race,
+    post_IAT_gen) %>% 
+  summarise( #using summarise() to calculate means and sds
+    PostnapIBaverage = mean(
+      rbind( #use rbind() function to bind together the race and gender postnap IAT values
+        post_IAT_race,
+        post_IAT_gen
+      )),
+    PostnapIBsd = sd( #now calculate mean and sds for this binded value 
+      rbind(
+        post_IAT_race,
+        post_IAT_gen
+      ))
+  )
+
+print(PostnapIB)
+
+OWDIB <- cleandata %>% #Calculating one-week delay implicit bias from "cleandata" data
+  select( #select two variables one-week delay IAT scores for race and gender 
+    week_IAT_race,
+    week_IAT_gen) %>% 
+  summarise( #using summarise() to calculate means and sds
+    OWDIBaverage = mean(
+      rbind( #use rbind() function to bind together the race and gender one-week delay IAT values
+        week_IAT_race,
+        week_IAT_gen
+      )
+    ),
+    OWDIBsd = sd( #now calculate mean and sds for this binded value 
+      rbind(
+        week_IAT_race,
+        week_IAT_gen
+      )
+    )
+  )
+
+print(OWDIB)
+```
+
+As you can see, it is very repetitive and long. 
+
+I initially attempted my transformations with just the baseline code since I assumed that one I had worked something out with a smaller piece of code, I could apply it to the entire chunk.
+
+Firstly, I attempted to bind the columns outside the `summarise` so that we didn't have to repeat the `rbind` when calculating both the mean and SD. But for some reason, when I try to do it this way, it says that "object 'base_IAT_race' not found".
+
+```{r eval=FALSE}
+
+BIB <- cleandata %>%
+  select(base_IAT_race,base_IAT_gen) %>% 
+  rbind(base_IAT_race,base_IAT_gen) %>%
+  summarise_all(list(mean = mean, sd = sd))
+
+print(BIB)
+
+```
+
+**week 9 LL**
+```{r}
+PrenapIB <- cleandata %>% #Calculating prenap implicit bias from "cleandata" data
+  select( #select two variables prenap IAT scores for race and gender 
+    pre_IAT_race,
+    pre_IAT_gen) %>% 
+  summarise( #using summarise() to calculate means and sds
+    PrenapIBaverage = mean(
+      rbind( #use rbind() function to bind together the race and gender prenap IAT values
+        pre_IAT_race, 
+        pre_IAT_gen)
+      ),
+    PrenapIBsd = sd( #now calculate mean and sds for this binded value 
+      rbind(
+        pre_IAT_race, 
+        pre_IAT_gen))
+            )
+
+print(PrenapIB)
+
+PostnapIB <- cleandata %>% #Calculating postnap implicit bias from "cleandata" data
+  select( #select two variables postnap IAT scores for race and gender 
+    post_IAT_race,
+    post_IAT_gen) %>% 
+  summarise( #using summarise() to calculate means and sds
+    PostnapIBaverage = mean(
+      rbind( #use rbind() function to bind together the race and gender postnap IAT values
+        post_IAT_race,
+        post_IAT_gen
+      )),
+    PostnapIBsd = sd( #now calculate mean and sds for this binded value 
+      rbind(
+        post_IAT_race,
+        post_IAT_gen
+      ))
+  )
+
+print(PostnapIB)
+
+OWDIB <- cleandata %>% #Calculating one-week delay implicit bias from "cleandata" data
+  select( #select two variables one-week delay IAT scores for race and gender 
+    week_IAT_race,
+    week_IAT_gen) %>% 
+  summarise( #using summarise() to calculate means and sds
+    OWDIBaverage = mean(
+      rbind( #use rbind() function to bind together the race and gender one-week delay IAT values
+        week_IAT_race,
+        week_IAT_gen
+      )
+    ),
+    OWDIBsd = sd( #now calculate mean and sds for this binded value 
+      rbind(
+        week_IAT_race,
+        week_IAT_gen
+      )
+    )
+  )
+
+print(OWDIB)
+```
+
+- function 
+```{r}
+#selecting variables of interest
+implicit_bias_time <- cleandata %>%
+  select(base_IAT_race, base_IAT_gen, 
+         pre_IAT_race, pre_IAT_gen, 
+         post_IAT_race, post_IAT_gen, 
+         week_IAT_race, week_IAT_gen)
+
+#the function
+function_implicit_bias_av_sd <- function(time_race, time_gen) {
+  
+  implicit_bias_time %>% 
+    select(all_of(time_race), all_of(time_gen)) %>%
+    summarise(row_mean = mean(c_across(everything())),
+              row_sd = sd(c_across(everything())))
+}
+
+#running the function
+function_implicit_bias_av_sd(time_race = "base_IAT_race", time_gen = "base_IAT_gen")
+function_implicit_bias_av_sd(time_race = "pre_IAT_race", time_gen = "pre_IAT_gen")
+```
+
+
+
+
+After attempting to Google for answers and play around with different forms of column concatenation (such as `pivot_longer` - which showed up with the same error message), nothing seemed to work because it still cannot find `base_IAT_race` even though this is suggested by RStudio when I begin to type the variable. 
+
+Jenny, would you be able to give me a hint as to how to fix this? Alternatively, if you have any tips on how I can bind the columns outside of the `mean()` or `sd()` functions, that would also be really helpful, thank you!
+
+Luckily, there were other areas in the descriptive statistics which I was able to successfully clean in the meantime.
+
+For example, we initially calculated mean age and mean Epworth Sleepiness score like this:
+
+```{r}
+#first draft of code 
+ageaverage <- cleandata %>% #calculating average age including sd using "cleandata" data 
+  select(General_1_Age) %>% #select variable from "cleandata" data 
+  summarise(ageaverage = mean(General_1_Age), #calculate mean and sd
+          agesd = sd(General_1_Age))
+
+ESS <- cleandata %>% #calculating ESS score using "cleandata" data 
+  select(Epworth_total) %>% #select variable from "cleandata" data 
+  summarise(ESSaverage = mean(Epworth_total), #calculate mean and sd
+            ESSsd = sd(Epworth_total))
+
+print(ESS)
+```
+
+With the new knowledge of summarise_all from Jenny's tips (as seen above), I was able to condense all this into just a few lines.
+
+```{r}
+averages <- cleandata %>%
+  select(General_1_Age, Epworth_total) %>% 
+  summarise_all(list(mean = mean, sd = sd))
+
+print(averages)
+```
+
+Once I figure out how to use `rbind()` properly, I would also like to condense that code and include it in a chunk with this.
+
+
+## 3. Start exploratory analysis
+
+For this step, I simply wanted to begin the process.
+
+The first question I wanted to examine was: is TMR more effective at reducing bias in men than women?
+
+The logic behind this question was that women are generally more subject to discrimination and may be more active in challenging their preconceived notions of gender. Therefore, the baseline level of bias is not as high in women as it is for men and it is possible that TMR may reduce bias for men and women to the same level. Therefore, if men's baseline implicit bias is higher then is reduced by TMR to the same level as women's this change could be significant.
+
+To look at this question, we can only look at bias as it pertains to gender (IAT_gen) variables, we must separate men's and women's IATs. 
+
+I wanted to try do a boxplot, since our group didn't have to replicate one.
+
+First, I tried to create a boxplot with just the baseline implicit bias level. Here, grouped the data by sex to separate male and female implicit bias levels. Then, I measured the x axis by the two groups of gender and then measure baseline bias levels on the y axis. I then colour-coded the genders and put all the data into a box plot. 
+
+```{r}
+fig1 <- cleandata %>%
+  select(General_1_Sex, base_IAT_gen)
+fig1$General_1_Sex <- as.factor(fig1$General_1_Sex)
+ggplot(fig1, aes(General_1_Sex, base_IAT_gen, fill = General_1_Sex)) +
+  geom_boxplot()
+
+attempt_explore1<- cleandata %>%
+  group_by(General_1_Sex) %>%
+  ggplot(aes(
+    x = General_1_Sex,
+    y = base_IAT_gen,
+    fill = General_1_Sex))+
+  geom_boxplot()
+    
+print(attempt_explore1)
+```
+This clearly worked, now the next step was to group the x-axis by time periods (baseline, pre-nap, post-nap, week delay) since sex is already shown by colour coding. This would also allow us to see how bias changes over time and with TMR.
+
+We've done a similar thing before in our group's figure 3, as shown here:
+
+![](graph 1.png)
+
+When making this graph, we had to put everything into a new data frame first since the x-axis is categorical. So, I initially based this approach off the data frame we used for that graph.
+
+```{r}
+#graph 1 code (original)
+data4 <- data.frame(
+  condition = factor(c("cued", "cued", "cued", "cued", "uncued", "uncued", "uncued", "uncued")),
+  time = factor(c("Baseline", "Prenap", "Postnap", "1-week", "Baseline", "Prenap", "Postnap", "1-week")),
+  bias_av = c(bias_av_se$baseIATcued_mean, bias_av_se$preIATcued_mean, bias_av_se$postIATcued_mean, bias_av_se$weekIATcued_mean, bias_av_se$baseIATuncued_mean, bias_av_se$preIATuncued_mean, bias_av_se$postIATuncued_mean, bias_av_se$weekIATuncued_mean))
+  se = c(bias_av_se$baseIATcued_se, bias_av_se$preIATcued_se,  bias_av_se$postIATcued_se, bias_av_se$weekIATcued_se, bias_av_se$baseIATuncued_se, bias_av_se$preIATuncued_se, bias_av_se$postIATuncued_se,bias_av_se$weekIATuncued_se)
+  
+
+#exploratory analysis code
+boxplot <- cleandata %>%
+  group_by(General_1_Sex) %>%
+  data.frame(
+    time = factor(c("Baseline", "Prenap", "Postnap", "1-week")),
+    IAT_gen = c(cleandata$base_IAT_gen, cleandata$pre_IAT_gen, cleandata$post_IAT_gen, cleandata$week_IAT_gen))
+
+head(boxplot)
+```
+I then put this data frame into ggplot in a similar way we did for the graph 1 plot.
+
+```{r}
+#graph 1 plot code (original)
+ggplot(data = data4, aes(
+  x = factor(time, level = c("Baseline", "Prenap", "Postnap", "1-week")), #googled how to reorder x variables ! 
+  y = bias_av,
+  colour = condition,
+  group = condition)) +
+  geom_line() +
+  geom_errorbar(aes(
+    x= time,
+    ymin=bias_av-se,
+    ymax=bias_av+se),
+width=0.1, colour="grey", alpha= 0.9) +
+  ylim(0.0, 0.7) + #expands y axis 
+  labs(x = "", y = "D600 Bias Score", caption = "Fig 3. Average D600 scores at each IAT timepoint") +
+  theme_bw()
+
+#exploratory analysis plot code
+explore1<-  ggplot(data = boxplot, aes(
+    x = factor(time, level = c("Baseline", "Prenap", "Postnap", "1-week")),
+    y = IAT_gen,
+    fill = General_1_Sex))+
+  geom_boxplot()
+
+print(explore1)
+```
+
+While this was a success because it produced something similar to what I had envisioned, there are a few problems with this graph. 
+
+1. Realistically, it should be in a line graph that looks similar to graph 1. At the moment it is incredibly cluttered and shows a lot of information. But I need to keep it as a boxplot if I want to show that I can do different kinds of plots. So, should I keep going with this plot?
+2. The values of the boxplot for the baseline part of this graph differ from the values in the first attempt baseline boxplot I made earlier, and I don't know why. Another question for Jenny, why are the values different?
+
+Once I've sorted these out, I'll get started on the statistical analysis for this plot.
+
+The next question I want to explore in my exploratory analysis is: did those who heard the cue perform better or worse on the implicit bias test?
+
+The logic behind this one is that if you heard the cue, you may be aware of what the TMR is attempting to do. Would this then affect how the TMR impacts you?
+
+For this we need to separate participants between those who predicted that the cue would be played, and those who didn't; then we would view the difference between the immediate change and the change after one week.
+
+I will get started on this one after getting advice on binding as this question also requires knowledge on using `rbind()`
+
+# **Next steps in my coding journey**
+
+The next steps in my coding journey are a continuation from this week's work:
+
+- Keep cleaning up code
+- Come up with another exploratory analysis question
+- Start the statistical analysis for question 1 
+- Create plots for exploratory analysis question 2 and 3
+
+This is a lot to do, and since I have a big assignment for another subject due next week, I'm not too sure how much I'll get done, but I'mm hoping to at least get the first three goals done by next week. It won't be too bad if I have to leave the last part of my verification report for the week after, as that is the last assignment I have.
+
+# **Questions for Jenny**
+
+In this section, I'll just more explicitly restate the questions I have for Jenny.
+
+1. The values of the boxplot for the baseline part of this graph (lines 270-280) differ from the values in the first attempt baseline boxplot I made earlier (lines 326-334) why are the values different?
+2. In lines 210-218, I attempted to bind the columns outside the `summarise` so that we didn't have to repeat the `rbind` when calculating both the mean and SD. But for some reason, when I try to do it this way, it says that "object 'base_IAT_race' not found". After attempting to Google for answers and play around with different forms of column combination (such as `pivot_longer` - which showed up with the same error message), nothing seemed to work because it still cannot find `base_IAT_race` even though this is suggested by RStudio when I begin to type the variable. Jenny, would you be able to give me a hint as to how to fix this? Alternatively, if you have any tips on how I can bind the columns outside of the `mean()` or `sd()` functions, that would also be really helpful, thank you!

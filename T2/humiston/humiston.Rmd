@@ -1,0 +1,131 @@
+---
+title: "harris"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(here)
+library(haven)
+library(psych)
+library(ggpubr)
+library(ggeasy)
+```
+
+```{r}
+humiston_raw <- read_sav(here("humiston", "Humiston & Wamsley 2019 data.sav"))
+
+humiston <- humiston_raw %>%
+  clean_names() %>%
+  filter(general_1_race == 1)
+  
+
+```
+
+# demographics
+- not clear what exclusions already exist in the raw data
+- filtering race gets n=31
+- there is an exclude and filter column though
+```{r}
+demo <- humiston %>%
+  select(participant_id, general_1_age:demo_1_non_participat) %>%
+  filter(general_1_race == 1)
+
+length(unique(demo$participant_id))
+
+age_sex <- demo %>%
+  select(general_1_age, general_1_sex)
+
+describe(age_sex$general_1_age)
+
+age_sex %>%
+  group_by(general_1_sex) %>%
+  count()
+
+```
+
+# Table 1
+- ESS = epworth_total for epworth sleeping scale
+- SSS = not sure, need to read the paper more closely
+- didn't finish, but this doesn't look too hard
+```{r}
+glimpse(humiston)
+table1 <- humiston %>%
+  select(participant_id, general_1_age, general_1_race, epworth_total, total_sleep)
+
+describe(table1$epworth_total)
+
+length(unique(table1$participant_id))
+```
+
+
+# Table 2
+- race and gender implicit bias levels
+```{r}
+table2 <- humiston %>%
+  select(participant_id, base_iat_race, base_iat_gen, pre_iat_race, pre_iat_gen, post_iat_race, post_iat_gen)
+
+describe(table2)
+
+```
+
+# Figure 3
+- first attempt... doesn't look right, definitely wrong values for 1 week
+```{r}
+fig3_summary <- humiston %>%
+  select(participant_id, base_ia_tcued, base_ia_tuncued, pre_ia_tcued, pre_ia_tuncued, post_ia_tcued, post_ia_tuncued, week_ia_tcued, week_ia_tuncued) %>%
+  pivot_longer(base_ia_tcued:week_ia_tuncued) %>%
+  mutate(cond = case_when((name == "base_ia_tcued" | name == "base_ia_tuncued") ~ "Baseline",
+    (name == "pre_ia_tcued" | name == "pre_ia_tuncued") ~ "Prenap",
+    (name == "post_ia_tcued" | name == "post_ia_tuncued") ~ "Postnap",
+    (name == "week_ia_tcued" | name == "week_ia_tuncued") ~ "1-Week",
+    (name == "week_ia_tcued" | name == "week_ia_tuncued") ~ "Postnap")) %>%
+  mutate(cued = ifelse(name %in% c("base_ia_tcued", "pre_ia_tcued", "post_ia_tcued", "week_ia_tcued"), "Cued", "Uncued")) %>%
+  group_by(cond, cued) %>%
+  summarise(mean = mean(value), 
+            sd = sd(value), 
+            n = n(), 
+            se = sd/sqrt(n))
+
+fig3_summary$cued <- factor(fig3_summary$cued)
+fig3_summary$cond <- factor(fig3_summary$cond, levels = c("Baseline", "Prenap", "Postnap", "1-Week"))
+
+ggplot(fig3_summary, aes(cond, mean, color=cued, group=cued)) +
+  geom_point(size=1.5) +
+  geom_errorbar(aes(ymin = mean-se, ymax = mean+se), width=.1, size=1.2) +
+  geom_line(size=1.2, linetype=c(1,1,1,1,2,2,2,2)) +
+  ylim(0,.7) +
+  scale_color_manual(values=c("black", "darkgrey")) +
+  theme_classic() +
+  easy_move_legend("bottom") +
+  easy_remove_legend_title() +
+  labs(x="", y = "D600 Bias Score") +
+  easy_text_size(15)
+
+```
+
+# Figure 4
+- not sure what it's plotting here
+```{r}
+
+```
+
+# Figure 5
+```{r}
+fig5 <- humiston %>%
+  select(sw_sx_rem, diff_biaschange)
+
+ggplot(fig5, aes(sw_sx_rem, diff_biaschange)) +
+  geom_point(size=4) +
+  geom_smooth(method = "lm", se = FALSE, linetype=2, color="black") +
+  theme_classic() +
+  labs(x = "SWS x REM sleep duration (min)", y = "Differential bias change") +
+  easy_text_size(15)
+
+```
+

@@ -1,0 +1,160 @@
+---
+title: "haigh"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(here)
+library(haven)
+library(psych)
+library(ggpubr)
+library(PupillometryR)
+library(ggeasy)
+library(yarrr)
+```
+
+- I ran the first part of Study 8 Script.R to get the tidied data 
+- used the tidied data set for experiment 2
+```{r}
+exp1_tidy <- read_csv(here("haigh", "exp 1", "MyDataTidied.csv"))
+
+n_exp1 <- length(unique(exp1_tidy$X1)) # 294 participants
+
+exp1 <- exp1_tidy %>%
+  clean_names() 
+
+
+exp2_tidy <- read_csv(here("haigh", "exp 2", "study7_tidy.csv"))
+
+n_exp2 <- length(unique(exp2_tidy$X1))
+
+exp2 <- exp2_tidy %>%
+  clean_names() 
+  
+```
+
+# Demographics Study 1
+- 1 = males
+- 2 = females
+```{r}
+demo <- exp1 %>%
+  select(gender, age)
+
+describe(demo$age)
+
+demo %>% 
+  group_by(gender) %>%
+  count()
+
+```
+
+# Demographics Study 2
+- 1 = male
+- 2 = female 
+- 3 = other
+```{r}
+demo2 <- exp2 %>%
+  select(gender, age)
+
+describe(demo2$age)
+
+demo2 %>% 
+  group_by(gender) %>%
+  count()
+```
+
+# Figure 1 - violin plot
+- experiment 1
+- perceived contracdiction appears to be sum of all 6 contradiction responses not mean
+- violin plot is right
+- boxplot is not right
+```{r}
+glimpse(exp1_tidy)
+
+exp1_tidy$condition <- factor(exp1_tidy$condition, labels = c("Generic Conflict", "Generic Non-Conflict", "Qualified Conflict", "Qualified Non-Conflict"))
+levels(exp1_tidy$condition)
+
+fig1 <- exp1_tidy %>%
+  select(condition, contradiction_1:contradiction_6, confusion, advancement) %>%
+  mutate(sum_contra = contradiction_1+contradiction_2+contradiction_3+contradiction_4+contradiction_5+contradiction_6,
+         format = ifelse((condition == "Generic Conflict" | condition == "Generic Non-Conflict"), "Generic", "Qualified"), 
+         conflict = ifelse((condition == "Generic Conflict" | condition == "Qualified Conflict"), "Conflict", "Non-Conflict")) 
+
+fig1 %>%
+  group_by(conflict) %>%
+  summarise(mean_contradict = mean(sum_contra), 
+            mean_confusion = mean(confusion), 
+            mean_advancement = mean(advancement))
+
+ggplot(fig1, aes(condition, sum_contra, fill = conflict)) +
+  geom_violin(alpha = .5) +
+  geom_point() +
+  labs(x = "", y = "Perceived Contradiction") +
+  theme_classic() +
+  easy_text_size(15) +
+  easy_remove_legend()
+
+ggplot(fig1, aes(condition, advancement, fill = conflict)) +
+  geom_violin(alpha = .5) +
+  geom_point() +
+  labs(x = "", y = "Perceived Scientific Advancement") +
+  theme_classic() +
+  easy_text_size(15) +
+  easy_remove_legend()
+
+ggplot(fig1, aes(condition, confusion, fill = conflict)) +
+  geom_violin(alpha = .5) +
+  geom_point() +
+  labs(x = "", y = "Perceived Confusion") +
+  theme_classic() +
+  easy_text_size(15) +
+  easy_remove_legend()
+
+```
+
+# Figure 1 - Pirate plots
+- took this code from the authors script but adjusted for my dataset 
+```{r}
+pirateplot(formula = sum_contra ~ conflict*format, data = fig1,inf.method = 'ci', yaxt = "n", ylim =c(0,30), theme=1,main = "Contradiction", ylab = "Percieved Contradiction",cex.names = 0.75, cex.lab = 0.9)
+axis(2, at = seq(from = 0, to = 30, by = 5)) 
+
+plot.new()
+
+pirateplot(formula = advancement ~ conflict*format, data = fig1,inf.method = 'ci', yaxt = "n", theme=1,main = "Advancement", ylab = "Percieved Scientific Advancement",cex.names = 0.75, cex.lab = 0.9)
+axis(2, at = seq(from = -1, to = 1, by = 1))
+
+plot.new()
+
+pirateplot(formula = confusion ~ conflict*format, data = fig1,inf.method = 'ci', yaxt = "n", theme=1,main = "Confusion", ylab = "Percieved Confusion",cex.names = 0.75, cex.lab = 0.9)
+axis(2, at = seq(from = 1, to = 5, by = 1)) 
+```
+
+# Figure 2
+- still exp1
+- from author's script I found labels for advancement -1=less, 0=same, 1=more
+```{r}
+glimpse(exp1)
+fig1$advancement <- factor(fig1$advancement, 
+                           labels = c("Less", "Same", "More"))
+fig1$condition <- factor(fig1$condition, 
+                           levels = c("Generic Conflict", "Qualified Conflict", "Generic Non-Conflict", "Qualified Non-Conflict"))
+
+
+ggplot(fig1,aes(x=advancement, group=condition,fill=condition)) + #set to group by 4 conditions
+  geom_bar(position="dodge") + 
+  labs(x="Advancemnt", y="Number of Participants") +
+  scale_fill_grey(start = 0, end = .8) +
+  theme_classic()
+    
+```
+
+# Figure 3 
+- haven't tried yet but looks the same as Fig 1

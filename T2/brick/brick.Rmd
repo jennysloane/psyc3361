@@ -1,0 +1,168 @@
+---
+title: "brick"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(here)
+library(PupillometryR)
+library(ggeasy)
+```
+
+- use merged.rda file as the merged.csv was a massive file
+```{r}
+#brick_raw <- read_csv(here("brick", "merged.csv"))
+load(file = "brick/merged.rda")
+
+prolific <- merged %>%
+  clean_names() %>%
+  filter(study == "Prolific")
+n_prolific = length(unique(prolific$id))
+
+length(unique(prolific$id))
+
+mturk <- merged %>%
+  clean_names() %>%
+  filter(study == "MTurk")
+n_mturk = length(unique(mturk$id))
+```
+
+# demographics: Prolific
+```{r}
+prolific_dem <- prolific %>%
+  select(id, age, female) 
+
+describe(prolific_dem) # age mean, min, max
+
+prolific_dem %>%
+  group_by(female) %>%
+  count()
+
+
+tabyl(prolific_dem$female)
+
+prolific_dem %>%
+  filter(female == 1 | female == 2) %>%
+  tabyl(female)
+
+```
+
+# demographics: MTurk 
+```{r}
+mturk_dem <- mturk %>%
+  select(id, age, female) 
+
+describe(mturk_dem) # age mean, min, max
+
+mturk_dem %>%
+  group_by(female) %>%
+  count()
+
+
+tabyl(mturk_dem$female)
+
+mturk_dem %>%
+  filter(female == 1 | female == 2) %>%
+  tabyl(female)
+
+```
+
+# table 4
+```{r}
+# only values = 1
+table4_P <- prolific %>%
+  select(id,study, blood_paid_self, blood_unpaid_self, blood_paid_others, blood_unpaid_others) %>%
+  na.omit()
+
+tabyl(table4_P$blood_paid_self)
+tabyl(table4_P$blood_unpaid_self)
+
+mean(table4_P$blood_paid_others)
+sd(table4_P$blood_paid_others)
+
+mean(table4_P$blood_unpaid_others)
+sd(table4_P$blood_unpaid_others)
+
+table4_M <- mturk %>%
+  select(id,study, blood_paid_self, blood_unpaid_self, blood_paid_others, blood_unpaid_others) %>%
+  na.omit()
+
+tabyl(table4_M$blood_paid_self)
+tabyl(table4_M$blood_unpaid_self)
+
+mean(table4_M$blood_paid_others)
+sd(table4_M$blood_paid_others)
+
+mean(table4_M$blood_unpaid_others)
+sd(table4_M$blood_unpaid_others)
+```
+
+# table 5
+- overestimation: mean difference of estimates between paid and unpaid conditions and subtracting the mean difference between paid and unpaid conditions of self reported willingness
+```{r}
+# difference in self donation between payment conditions was 76.8-71.2 = 5.6%
+
+merged <- merged %>%
+  mutate(overestimation_S1 = self_interest_others_S1 - 5.6)
+merged$overestimation_S1[is.na(merged$self_interest_others_S1)] <- NA
+
+# mean(merged$overestimation_S1, na.rm = TRUE)
+# sd(merged$overestimation_S1, na.rm = TRUE)
+
+overest_M <- merged %>%
+  filter(study == "MTurk") %>%
+  select(id, overestimation_S1) %>%
+  na.omit()
+mean(overest_M$overestimation_S1, na.rm = TRUE)
+sd(overest_M$overestimation_S1, na.rm = TRUE)
+
+overest_P <- merged %>%
+  filter(study == "Prolific") %>%
+  select(id, overestimation_S1) %>%
+  na.omit()
+mean(overest_P$overestimation_S1, na.rm = TRUE)
+sd(overest_P$overestimation_S1, na.rm = TRUE)
+
+```
+
+
+# figure 1 
+- haven't tried to add the boxplot below but I believe you can position the histogram up and pretty easily add the boxplot below
+```{r}
+fig1 <- merged %>%
+  select(id, donation_payment_others, estimate_S1) %>%
+  na.omit()
+
+ggplot(fig1, aes(donation_payment_others, estimate_S1, fill = donation_payment_others)) +
+  geom_flat_violin() +
+  coord_flip() +
+  theme_classic() +
+  labs(y = "Estimated donation in others (%)", x = "") +
+  easy_remove_legend()
+
+
+
+```
+
+# figure 2
+- ...this doesn't look right but I didn't think it was super clear what the histograms were plotting
+```{r}
+fig2 <- merged %>%
+  filter(study == "MTurk") %>%
+  select(id, policy_self, overestimation_S1)%>%
+  filter(policy_self == 1) %>%
+  distinct() %>%
+  na.omit()
+
+ggplot(fig2, aes(overestimation_S1)) +
+  geom_histogram(bins = 20)
+
+```
+
+# Study 4 - haven't looked at yet
