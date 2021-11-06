@@ -32,7 +32,7 @@ library(ozbabynames)
 
 - example with covid data
 ```{r}
-mydat <- read_csv("covid_T1_2021/data/9_folk/Study2.csv") %>% 
+mydat <- read_csv("data/9_folk/Study2.csv") %>% 
   clean_names()
 
 low_extroV <- quantile(mydat$t1extraversion)[2] # lowest quantile for introverts
@@ -211,8 +211,8 @@ t.test(female$body_mass_g, male$body_mass_g)
 ttestBF(female$body_mass_g, male$body_mass_g)
 
 # BayesianFirstAid
-fit <- bayes.t.test(female$body_mass_g, male$body_mass_g)
-plot(fit)
+# fit <- bayes.t.test(female$body_mass_g, male$body_mass_g)
+# plot(fit)
 ```
 
 # Troubleshooting

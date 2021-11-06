@@ -35,7 +35,7 @@ library(haven)
 
 ```{r}
 library(readxl)
-study4 <- read_excel(here("T1", "data", "3_pfattheicher", "Study4.xlsx")) %>%
+study4 <- read_excel(here("data", "3_pfattheicher", "Study4.xlsx")) %>%
   rowid_to_column("ID") %>%
   zap_labels()
 
@@ -108,9 +108,9 @@ summary(aov_test2)
 
 # Combining multiple datasets
 ```{r}
-data_1_raw = read_csv(here("T1", "data", "4_tybur", "WTR_Comfort_S1.csv"))
-data_2 = read_csv(here("T1", "data", "4_tybur", "WTR_Comfort_S2.csv"))
-data_3 = read_csv(here("T1", "data", "4_tybur", "WTR_Comfort_S3.csv"))
+data_1_raw = read_csv(here("data", "4_tybur", "WTR_Comfort_S1.csv"))
+data_2 = read_csv(here("data", "4_tybur", "WTR_Comfort_S2.csv"))
+data_3 = read_csv(here("data", "4_tybur", "WTR_Comfort_S3.csv"))
 
 # select which columns we want 
 data1 <- data_1_raw %>%
@@ -129,7 +129,7 @@ data_all <- rbind(data1, data2, data3)
 # stacked bar plot and how to round 
 ```{r}
 # how to round
-COVID <- read_sav(here("T1", "data","8_smith",  "believing.sav")) %>%
+COVID <- read_sav(here("data","8_smith",  "believing.sav")) %>%
   rowid_to_column("ID")
 
 COVIDexplore1 <- COVID %>%

@@ -249,7 +249,7 @@
 <ul>
 <li>example with covid data</li>
 </ul>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>mydat <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">&quot;covid_T1_2021/data/9_folk/Study2.csv&quot;</span>) <span class="sc">%&gt;%</span> </span>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>mydat <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">&quot;data/9_folk/Study2.csv&quot;</span>) <span class="sc">%&gt;%</span> </span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">clean_names</span>()</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>low_extroV <span class="ot">&lt;-</span> <span class="fu">quantile</span>(mydat<span class="sc">$</span>t1extraversion)[<span class="dv">2</span>] <span class="co"># lowest quantile for introverts</span></span>
@@ -425,8 +425,8 @@
 <span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="fu">ttestBF</span>(female<span class="sc">$</span>body_mass_g, male<span class="sc">$</span>body_mass_g)</span>
 <span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="co"># BayesianFirstAid</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>fit <span class="ot">&lt;-</span> <span class="fu">bayes.t.test</span>(female<span class="sc">$</span>body_mass_g, male<span class="sc">$</span>body_mass_g)</span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(fit)</span></code></pre></div>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="co"># fit &lt;- bayes.t.test(female$body_mass_g, male$body_mass_g)</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="co"># plot(fit)</span></span></code></pre></div>
 </div>
 <div id="troubleshooting" class="section level1">
 <h1>Troubleshooting</h1>

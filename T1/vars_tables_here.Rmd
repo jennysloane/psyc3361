@@ -5,7 +5,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-*please note - this file won't knit properly, but all the code chunks should work. I think this has something to do with the working directory being different in the .Rmd compared to the getwd(). To avoid this proble, use here() when reading in data*
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
@@ -19,7 +18,7 @@ library(gt)
 
 # creating and saving variables & filter()
 ```{r}
-mydat <- read_csv("T1/data_forensic.csv")
+mydat <- read_csv("data_forensic.csv")
 
 # I want a variable that has only forensic scientists
 mydat %>%
@@ -79,16 +78,16 @@ tabyl(mtcars, cyl) %>%
 # getwd()
 
 # let's try to load in the forensic dataset first
-forensic <- read_csv("T1/data_forensic.csv") # that works because this csv is in our current working directory
+forensic <- read_csv("data_forensic.csv") # that works because this csv is in our current working directory
 
 # but now I want to try to read in a csv that is in the data folder and then in 1_carstensen folder (so 2 folders deep)
 
 # group1 <- read_csv("covid_T1_2021/data/AgeAdvantagesEmotionCovid_Data.csv") # error! not in the current working directory
 
-group1 <- read_csv("T1/data/1_carstensen/AgeAdvantagesEmotionCovid_Data.csv") # this would work, I just started typing "age" and then tab to select the right file and it automatically filled in the rest
+group1 <- read_csv("data/1_carstensen/AgeAdvantagesEmotionCovid_Data.csv") # this would work, I just started typing "age" and then tab to select the right file and it automatically filled in the rest
 
 # or we can use the here function
-group1 <- read_csv(here("T1", "data", "1_carstensen", "AgeAdvantagesEmotionCovid_Data.csv"))
+group1 <- read_csv(here("data", "1_carstensen", "AgeAdvantagesEmotionCovid_Data.csv"))
 ```
 
 # Group 1 
@@ -199,7 +198,7 @@ mean_sd_ci %>%
 - this code doesn't exclude any participants
 ```{r}
 library(readxl)
-group2_usa <- read_excel(here("T1", "data", "3_pfattheicher", "Study1USA.xlsx"))
+group2_usa <- read_excel(here("data", "3_pfattheicher", "Study1USA.xlsx"))
 
 # empathy = Q22_1, Q22_3, Q22_5 and ve = mean empathy
 # social distance = Q24_1 and sd = mean social distance
@@ -224,7 +223,7 @@ ggplot(fig1, aes(x = ve, y = sd)) +
 - [https://osf.io/tk3ua/](https://osf.io/tk3ua/) can take a look at WTR codebook. 6 anchors, I believe, refers to the columns where 0 and -0.25 for self and -0.45 for other
 - try to figure out which 35 participants were excluded for more than 2 switch points *I'm still not sure about this one*
 ```{r}
-group3 <- read_csv(here("T1", "data","4_tybur",  "WTR_Comfort_S1.csv")) %>%
+group3 <- read_csv(here("data","4_tybur",  "WTR_Comfort_S1.csv")) %>%
   clean_names()
 
 tabyl(group3$sex) %>%
@@ -274,7 +273,7 @@ anchor1_switch <- WTR_anchor1 %>%
 ```{r}
 library(haven)
 
-group4 <- read_sav(here("T1", "data","8_smith",  "believing.sav")) %>%
+group4 <- read_sav(here("data","8_smith",  "believing.sav")) %>%
   clean_names() %>%
   rowid_to_column("ID")
 
@@ -312,8 +311,6 @@ library(glue)
 
 age %>%
   gt()
-
-
 
 
 group4$q8haveimmunity <- as.factor(as.character(group4$q8haveimmunity))
