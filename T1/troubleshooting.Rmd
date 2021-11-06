@@ -1,5 +1,5 @@
 ---
-title: "QnA Week 9 - troubleshooting"
+title: "Troubleshooting"
 output: rmdformats::readthedown
 editor_options: 
   chunk_output_type: console
@@ -153,7 +153,7 @@ emo::ji("smile")
 
 # How to choose where to start???
 
-![Where to Start 2](quad_oriented.png)
+![Where to Start 2](images/quad_oriented.png)
 
 - if you're just looking to new things in general then tutorials are a great option because they'll cover a range of topics
 - however, if you have a specific problem then blog posts are often a better place to start because they will walk you through how to use a given package

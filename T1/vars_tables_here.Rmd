@@ -5,7 +5,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-*please note - for some reason this file doesn't seem to knit properly, but all of the code chunks should work*
+*please note - this file won't knit properly, but all the code chunks should work. I think this has something to do with the working directory being different in the .Rmd compared to the getwd(). To avoid this proble, use here() when reading in data*
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```

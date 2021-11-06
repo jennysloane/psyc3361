@@ -1,5 +1,5 @@
 ---
-title: "QnA Week 8"
+title: "Stats Continued"
 output: rmdformats::readthedown
 editor_options: 
   chunk_output_type: console

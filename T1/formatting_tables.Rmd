@@ -1,5 +1,5 @@
 ---
-title: "QnA Session Week 6"
+title: "Formatting Tables"
 output: rmdformats::readthedown
 editor_options: 
   chunk_output_type: console
@@ -30,7 +30,7 @@ loadfonts(device="win")
 - but we can still knit the document because eval is set to FALSE
 ```{r eval = FALSE}
 # I made a typo here (should be read_csv!)
-group1 <- read_cvs(here("data", "1_carstensen", "AgeAdvantagesEmotionCovid_Data.csv")) 
+group1 <- read_cvs(here("T1", "data", "1_carstensen", "AgeAdvantagesEmotionCovid_Data.csv")) 
 ```
 
 # Formatting Tables!
@@ -114,7 +114,7 @@ my_table %>%
 ```{r echo=FALSE}
 library(haven)
 
-group4 <- read_sav(here("data","8_smith",  "believing.sav")) %>%
+group4 <- read_sav(here("T1", "data","8_smith",  "believing.sav")) %>%
   clean_names() %>%
   rowid_to_column("ID")
 
@@ -233,7 +233,7 @@ cor.test(corr_ex$sepal_length, corr_ex$petal_width)
 - sort in descending order by country by sample size
 - exclude countries sample size less than 15
 ```{r eval=FALSE}
-group5 <- read_csv("data/9_folk/Study2.csv") %>%
+group5 <- read_csv(here("T1", "data", "9_folk", "Study2.csv")) %>%
   clean_names()
 
 group5 %>%
@@ -407,7 +407,7 @@ ggdraw() +
 - unfortunately, for your question I needed to see your code but no one from group 4 was at Thursday's session 
 - try going through this code again and let me know if you still have issues
 ```{r eval=FALSE}
-group4 <- read_sav(here("data","8_smith",  "believing.sav")) %>%
+group4 <- read_sav(here("T1", "data","8_smith",  "believing.sav")) %>%
   clean_names() %>%
   rowid_to_column("ID")
 

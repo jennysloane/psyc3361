@@ -269,7 +269,7 @@ summary(lm_penguin)
 
 - trouble reproducing Study 2 Empathy Physical Distancing plot
 ```{r}
-group2 <- read_excel(here("covid_T1_2021", "data", "3_pfattheicher", "Study2.xlsx"))
+group2 <- read_excel(here("T1", "data", "3_pfattheicher", "Study2.xlsx"))
 
 fig1 <- group2 %>%
   rowid_to_column("ID") %>% 
